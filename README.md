@@ -115,9 +115,125 @@ npm run format           # Prettier 全專案格式化
 ## Docker（後端映像）
 
 `backend/Dockerfile` 為多階段建置（node:20-alpine，arm64 相容，目標部署平台 Raspberry Pi 4）。
-開發階段以本機 `npm run dev` 為主；生產 compose（`docker-compose.arm64.yml`）於 M25 建立。
+開發階段以本機 `npm run dev` 為主；生產部署使用 `docker-compose.arm64.yml`（見下方「生產部署」章節）。
 
 ```bash
 # 以 repo 根目錄為 build context
 docker build -f backend/Dockerfile --target runtime -t casino-backend .
 ```
+
+---
+
+## 生產部署（Raspberry Pi 4 / arm64）
+
+### 架構概覽
+
+```
+Internet ─── Nginx (80/443) ─── Node.js App (3000, cluster ×2)
+                                  ├── PostgreSQL (internal)
+                                  └── Redis (internal)
+```
+
+所有服務在 Docker 橋接網路內互通；只有 Nginx 對外暴露 80/443。
+
+### 先決條件（Pi 4 上）
+
+- Docker Engine 24+ 與 Docker Compose v2
+- Node.js 20 LTS（用於建置前端 dist；若已有 CI/CD 可省略）
+- 已設定 SSH 金鑰登入（建議停用密碼登入）
+
+### 部署步驟
+
+#### 1. 建立生產環境設定
+
+```bash
+cp .env.example .env.production
+nano .env.production
+# 必須修改：
+#   NODE_ENV=production
+#   POSTGRES_PASSWORD=（強密碼）
+#   POSTGRES_DB=casino_prod
+#   DATABASE_URL=postgresql://casino:PASSWORD@postgres:5432/casino_prod?schema=public
+#   REDIS_URL=redis://redis:6379
+# 然後執行：
+bash scripts/gen-secrets.sh    # 自動填入 JWT_SECRET / AES_256_GCM_KEY / ADMIN_INITIAL_PASSWORD
+```
+
+#### 2. 產生 TLS 憑證
+
+```bash
+# 自簽憑證（測試用，瀏覽器會警告）：
+bash scripts/gen-cert.sh
+
+# 正式域名請改用 Let's Encrypt：
+# sudo apt install certbot
+# sudo certbot certonly --standalone -d yourdomain.com
+# 然後更新 nginx/conf.d/site.conf 中的 ssl_certificate 路徑
+```
+
+#### 3. 執行部署
+
+```bash
+bash scripts/deploy.sh
+```
+
+`deploy.sh` 自動完成以下步驟：
+1. 環境檢查（.env.production / TLS 憑證）
+2. `git pull --ff-only`
+3. `npm install --prefer-offline`
+4. 建置前端 dist（frontend + admin-frontend）
+5. 建置 Docker 映像（backend/Dockerfile target:runtime）
+6. 執行 Prisma migration（使用 `--profile migrate` 服務）
+7. `docker compose up -d` 啟動全部服務
+
+#### 4. 核心強化（選用，需 root）
+
+```bash
+# Linux 核心參數強化（SYN Cookie / rp_filter / kptr_restrict 等）
+sudo bash scripts/sysctl-hardening.sh
+
+# 若使用 Cloudflare 代理：僅允許 CF IP 段訪問 80/443
+sudo bash scripts/cf-allowlist.sh
+```
+
+### 備份與還原
+
+```bash
+# 手動備份（保留最近 7 天）
+bash scripts/backup.sh
+
+# 建議加入 crontab（每日 03:00）：
+# 0 3 * * * /bin/bash /home/pi/casino/scripts/backup.sh >> /var/log/casino-backup.log 2>&1
+
+# 互動式還原
+bash scripts/restore.sh
+
+# 還原指定備份
+bash scripts/restore.sh backups/backup_20260614_030000.sql.gz
+```
+
+### 服務管理
+
+```bash
+# 查看狀態
+docker compose -f docker-compose.arm64.yml --env-file .env.production ps
+
+# 查看日誌
+docker compose -f docker-compose.arm64.yml --env-file .env.production logs -f app
+docker compose -f docker-compose.arm64.yml --env-file .env.production logs -f nginx
+
+# 重啟單一服務
+docker compose -f docker-compose.arm64.yml --env-file .env.production restart app
+
+# 更新部署（拉取最新代碼後）
+bash scripts/deploy.sh
+```
+
+### 資源限制（Pi 4 4 GB RAM）
+
+| 服務 | 記憶體上限 | 說明 |
+|------|-----------|------|
+| PostgreSQL | 768 MB | 主資料庫 |
+| Node.js App | 512 MB | cluster ×2 workers，共用 |
+| Redis | 256 MB | maxmemory 200 MB + LRU |
+| Nginx | 64 MB | TLS 終止 + 靜態檔案 |

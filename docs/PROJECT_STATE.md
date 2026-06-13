@@ -2,13 +2,211 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
-- 進度：M22 / M28（A–E 階段完成；M14–M22 已完成）
+- 進度：M25 / M28（A–E 階段完成；M14–M25 已完成）
 - 資料庫 migration 版本：20260612_init（17 張表 + 9 enum + BRIN ×2 + 物化視圖 ×3 + jackpot 種子行）
-- API 狀態：infra ✅ / db-schema ✅ / app-skeleton ✅ / auth ✅ / api-spec ✅ / security ✅ / wallet ✅ / socket-base ✅ / frontend-skeleton ✅ / slot-core ✅ / slot-api ✅ / slot-frontend ✅ / roulette ✅（M15 後端 + M16 前端） / jackpot ✅（M14） / charm ✅ / daily ✅（M18） / leaderboard ✅（M19） / chat ✅ / achievement ✅（M20） / admin ✅（M21 後端核心：2FA / 玩家管理 / 稽核 / 公告 / Gift Code）/ gift-code-redeem ✅（M22）/ records-query ✅（M22） / monitor ⬜
+- API 狀態：infra ✅ / db-schema ✅ / app-skeleton ✅ / auth ✅ / api-spec ✅ / security ✅ / wallet ✅ / socket-base ✅ / frontend-skeleton ✅ / slot-core ✅ / slot-api ✅ / slot-frontend ✅ / roulette ✅（M15 後端 + M16 前端） / jackpot ✅（M14） / charm ✅ / daily ✅（M18） / leaderboard ✅（M19） / chat ✅ / achievement ✅（M20） / admin ✅（M21 後端核心：2FA / 玩家管理 / 稽核 / 公告 / Gift Code）/ gift-code-redeem ✅（M22）/ records-query ✅（M22） / admin-frontend ✅（M23）/ monitor ✅（M24）/ deploy-pipeline ✅（M25）
 - 已知 Bug：無
-- TODO（下一步）：M23 管理後台前端；timed-mute 自動解除排程（BullMQ 延遲任務）
-- 最近 Commit：feat(gift-code,record): M22 Gift Code 兌換 + 管理紀錄查詢
-- 新增依賴：（無新依賴）
+- TODO（下一步）：M26；timed-mute 自動解除排程（BullMQ 延遲任務）
+- 最近 Commit：feat(M25): production deploy pipeline (docker-compose.arm64.yml, nginx, scripts)
+- 新增依賴：無（部署工具層）
+
+---
+
+## M25 完成內容（2026-06-14）
+
+### 生產部署管線（02_TDD §7、05_MILESTONES M25）
+
+**新增 `docker-compose.arm64.yml`**（Raspberry Pi 4 / arm64 生產 Compose）：
+- 服務：`postgres`（768 MB）/ `redis`（256 MB）/ `app`（512 MB）/ `nginx`（64 MB）/ `migrate`（profile）
+- 所有映像使用官方 multi-arch 版本（`postgres:16-alpine`、`redis:7-alpine`、`nginx:1.27-alpine`、`node:20-alpine`）；`platform: linux/arm64` 明確指定
+- `app` 從 `backend/Dockerfile target:runtime` 建置（多階段，最小生產映像；`CMD cluster.js`）
+- `migrate` service（`profile: migrate`）：使用 `target:deps`（含 prisma CLI，未 prune devDeps）+ 掛載 `backend/prisma/`，執行 `node_modules/.bin/prisma migrate deploy`；部署前一次性執行
+- `redis`：AOF 持久化 + `maxmemory 200mb allkeys-lru`
+- 所有服務設有 `healthcheck` 與 `depends_on condition: service_healthy`（啟動順序：postgres → redis → app → nginx）
+- 全部服務在 `internal` 橋接網路；只有 `nginx` 暴露 `80:80` / `443:443`
+- 持久化 volume：`pgdata`、`redisdata`、`nginx_logs`
+
+**新增 `nginx/nginx.conf`**：
+- `worker_processes auto`（Pi 4 四核）、`epoll` 事件模型、`multi_accept on`
+- Gzip 壓縮（text/css/js/json/svg）、`server_tokens off`、保守緩衝區設定
+
+**新增 `nginx/conf.d/ratelimit.conf`**（http context）：
+- `limit_req_zone`：`api` 30 r/s、`auth` 10 r/min（防暴力破解）、`admin_api` 20 r/s
+- `limit_conn_zone`：`per_ip` 50 連線
+- `limit_req_status 429` / `limit_conn_status 429`
+
+**新增 `nginx/conf.d/tls.conf`**（http context）：
+- `ssl_protocols TLSv1.2 TLSv1.3`（禁用舊版）
+- ECDHE + AES-GCM / CHACHA20 cipher（AEAD，前向保密）；`ssl_prefer_server_ciphers off`
+- `ssl_ecdh_curve X25519:prime256v1:secp384r1`
+- Session cache `shared:SSL:10m`（10 MB ≈ 4 萬 session）；`ssl_session_tickets off`
+- OCSP Stapling（自簽憑證無效但設定無害；Let's Encrypt 自動啟用）
+
+**新增 `nginx/conf.d/site.conf`**（HTTP + HTTPS server block）：
+- HTTP：`/health` 回 200（Docker healthcheck）+ 其餘 301 → HTTPS
+- HTTPS：HSTS / X-Frame-Options / X-Content-Type-Options / X-XSS-Protection / Referrer-Policy
+- `location ^~ /api/auth/`：`limit_req zone=auth burst=10 nodelay`（最嚴）
+- `location ^~ /api/admin/`：`limit_req zone=admin_api burst=40 nodelay`
+- `location ^~ /api/`：`limit_req zone=api burst=60 nodelay`
+- `location ^~ /socket.io/`：WebSocket proxy（`Upgrade / Connection: upgrade` / `proxy_read_timeout 86400s` / `proxy_buffering off`）
+- `location ^~ /admin`：`alias admin-frontend/dist`；SPA `try_files` fallback；靜態資源 `expires 1y` 長快取
+- `location /`：`root frontend/dist`；SPA fallback；靜態資源長快取
+
+**新增 `scripts/deploy.sh`**（完整部署流程）：
+1. 環境檢查（.env.production 存在 + 無 change_me + TLS 憑證）
+2. `git pull --ff-only`
+3. `npm install --prefer-offline`
+4. `npm run build --workspace=frontend` + `--workspace=admin-frontend`
+5. `docker compose build app`
+6. 啟動 postgres/redis + 等待 healthcheck → 執行 migrate service
+7. `docker compose up -d --remove-orphans`
+8. 30 秒後冒煙測試（HTTP/HTTPS/API）
+
+**新增 `scripts/backup.sh`**：
+- `docker exec casino-postgres pg_dump | gzip -9` → `backups/backup_YYYYMMDD_HHMMSS.sql.gz`
+- `gzip -t` 完整性驗證
+- `find -mtime +${RETAIN_DAYS}` 清理舊備份（預設 7 天）
+- 建議 crontab 每日 03:00 執行
+
+**新增 `scripts/restore.sh`**（互動式）：
+- 列出備份清單供選擇，或傳入路徑非互動執行
+- 需輸入「yes」確認（雙重防護）
+- 先停 app/nginx → DROP + CREATE 資料庫 → `gunzip | psql` 還原 → 選擇性重啟服務
+
+**新增 `scripts/gen-cert.sh`**：
+- `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256`（EC P-256，比 RSA 更適合 Pi 4）
+- 有效期 3650 天、SAN 含 DNS:localhost + IP:127.0.0.1
+- 憑證：`nginx/certs/server.key` / `nginx/certs/server.crt`（600/644 權限）
+- 內含 Let's Encrypt 正式上線說明
+
+**新增 `scripts/sysctl-hardening.sh`**（需 root）：
+- `net.ipv4.tcp_syncookies=1`（SYN Flood 防護）
+- 停用 IP forwarding / source routing / ICMP redirect
+- `rp_filter=1`（Reverse Path Filtering，防 IP spoofing）
+- TCP keepalive 調整、`kernel.kptr_restrict=1`、`kernel.dmesg_restrict=1`
+- 持久化至 `/etc/sysctl.d/99-casino-hardening.conf`
+
+**新增 `scripts/cf-allowlist.sh`**（可選，使用 Cloudflare 時啟用）：
+- `ipset` 管理 CF IPv4/IPv6 段（15 + 7 個 CIDR）
+- iptables DROP 非 CF 來源的 80/443 請求
+- `--apply` / `--remove` / `--update` 三種模式
+- 提示每月更新 IP 段並持久化
+
+**新增 `nginx/certs/.gitkeep`**（確保空目錄進 git）
+
+**更新 `.env.example`**：
+- 新增生產環境設定說明區塊（`DATABASE_URL` 使用 Docker 服務名 `postgres` / `redis`）
+- 區分開發 vs 生產的 `POSTGRES_DB`（`casino_dev` / `casino_prod`）
+
+## M25 驗收（DoD）
+
+- [x] `docker-compose.arm64.yml`：4 服務 + migrate profile；記憶體限制；healthcheck；依賴順序
+- [x] `nginx/nginx.conf`：worker_processes auto + epoll；gzip；server_tokens off
+- [x] `nginx/conf.d/ratelimit.conf`：api/auth/admin_api 三個 limit_req_zone + per_ip limit_conn_zone
+- [x] `nginx/conf.d/tls.conf`：TLS 1.2+；ECDHE cipher；session cache；OCSP stapling
+- [x] `nginx/conf.d/site.conf`：HTTP→HTTPS 301；/health；API proxy；WebSocket proxy；SPA 靜態服務
+- [x] `scripts/deploy.sh`：7 步驟完整流程（環境檢查 → build → migrate → up）
+- [x] `scripts/backup.sh`：pg_dump + gzip + 7 天清理 + 建議 crontab
+- [x] `scripts/restore.sh`：互動式清單選擇 + "yes" 確認 + DB 重建
+- [x] `scripts/gen-cert.sh`：EC P-256 自簽 + SAN + Let's Encrypt 說明
+- [x] `scripts/sysctl-hardening.sh`：SYN cookie / rp_filter / kptr_restrict + 持久化
+- [x] `scripts/cf-allowlist.sh`：ipset + iptables CF 白名單
+- [x] `.env.example`：生產環境變數清單完整（含 Docker hostname 差異說明）
+- [ ] 樹莓派 4 真機冒煙測試（需 arm64 硬體 + 正式 Let's Encrypt 憑證）
+
+---
+
+## M24 完成內容（2026-06-14）
+
+### 監控 API + 異常偵測完整實作（01_GDD §6、02_TDD §5.7、05_MILESTONES M24）
+
+**新增 `backend/src/modules/monitor/`**：
+- `monitor.service.ts`（`createMonitorService`）：以 `systeminformation` 採集 CPU（manufacturer/brand/physicalCores/currentLoad/temperature）/ 記憶體（total/used/free/usedPercent）/ 磁碟（fs/size/used/use）；CPU 靜態資訊開機快取一次；SCAN `socket:conns:*` Redis 鍵加總線上人數；讀 `roulette:round:current` 是否存在得活躍房間數；回傳 `SystemStatsRes`（與 admin-frontend 型別對齊）
+- `monitor.routes.ts`：`GET /api/admin/monitor`（adminOnly；注入 stub 友善）
+
+**更新 `backend/src/security/anomaly.ts`**（三條規則全部完成）：
+- 規則 1 BET_RATE：不變（1s 桶 >2 筆/s）
+- 規則 2 WIN_RATE（新）：5 分鐘桶（`anomaly:wr:win/total:{userId}:{bucket5m}`）；連續 3 個視窗勝率 > 99% 且每窗 ≥ 10 筆才標記；TTL = `WIN_RATE_BUCKET_SECONDS × (CONSEC_WINDOWS+2)`
+- 規則 3 NET_WIN_OUTLIER（新）：INCRBY `anomaly:netwin:{userId}:{dateKey}`（payout-amount 累計，可負）；讀 `anomaly:p99:{dateKey}`（由 monitor-scan.job 寫入）；netwin > p99×10 → 標記
+- 新增 `updateNetWinP99()`：SCAN → 排序 → 取 idx=floor(n×0.99) → 寫 p99 鍵（EX 2天）
+- `onFlag` 回呼已接 `slot.routes.ts`（`updateMany flagged=true` fire-and-forget）
+
+**新增 `backend/src/jobs/monitor-scan.job.ts`**：
+- 隊列名稱 `monitor-scan`；每 10 分鐘 repeatable；`createMonitorScanProcessor(deps)` 工廠分離
+- 呼叫 `anomaly.updateNetWinP99()` 更新 P99 快取
+- `registerMonitorScanJob(app)` 於 `server.ts` 啟動（繼 leaderboard jobs 之後）
+
+**更新 `backend/src/app.ts`**：加掛 `monitorRoutes` 於 `/api/admin`
+
+**更新 `backend/src/server.ts`**：`registerMonitorScanJob(app)` 啟動調用
+
+**更新 `backend/src/modules/slot/slot.routes.ts`**：`createAnomalyDetector` 傳入 `onFlag`（`prisma.user.updateMany({ flagged: true })`，fire-and-forget）
+
+**更新 `admin-frontend/src/views/MonitorView.vue`**：
+- 移除 Mock 回退（API 失敗改顯示通用錯誤訊息）
+- 新增「立即刷新」按鈕（loading state + disabled 保護）
+- `fetchStats` 防競態（`loading.value` guard）
+
+**測試**：356 條（+17）
+- `test/unit/anomaly.spec.ts`：14 條（BET_RATE 3 + WIN_RATE 3 + NET_WIN_OUTLIER 4 + updateNetWinP99 3 + Redis 失敗 1）
+- `test/integration/monitor-routes.spec.ts`：3 條（無 token 401 / PLAYER 403 / ADMIN 200）
+
+**新增依賴**：`systeminformation ^5.31.7`（backend）
+
+---
+
+## M23 完成內容（2026-06-14）
+
+### 管理後台前端（01_GDD §6、04_FOLDER_STRUCTURE §3、05_MILESTONES M23）
+
+**`admin-frontend/` 獨立 Vue 3 + Vite + Pinia + Vue Router SPA（base: `/admin/`）**
+
+**新增 `src/api/`**：
+- `http.ts`：axios 實例（baseURL `/api`）；請求攔截器自動附 `Authorization: Bearer`；回應攔截器 401 → refresh token 換發 → 重試；refresh 失敗強制登出跳回 /login
+- `admin.ts`：全部管理後台 API 函式（`apiLogin`, `apiAdminMe`, `apiTotpValidate`, `apiTotpReverify`, `apiListPlayers`, `apiBanUser`, `apiUnbanUser`, `apiAdjustBalance`, `apiCreateGiftCode`, `apiListGiftCodes`, `apiListLoginRecords`, `apiListBetRecords`, `apiListTxRecords`, `apiGetMonitorStats`, `apiListAnnouncements`, `apiCreateAnnouncement`, `apiUpdateAnnouncement`, `apiDeleteAnnouncement`）；`extractErrorMessage` 統一解析 axios error
+
+**新增 `src/stores/`**：
+- `auth.ts`（`useAdminAuthStore`）：`accessToken`/`refreshToken` 持久化 localStorage；`user`（AdminUser）；`reverifyToken`/`reverifyExpiresAt` 僅存 Pinia 記憶體；computed `isLoggedIn` / `isTotpVerified` / `hasValidReverifyToken`；`setReverifyToken(token, expiresIn)` 計算到期時間戳
+- `ui.ts`（`useUiStore`）：Toast 佇列（id/message/type）；`addToast(message, type, duration)` 自動移除
+
+**新增 `src/router/index.ts`**：history 模式（`/admin/`）；navigation guard：未登入→`/login`；已登入但 TOTP 未驗→`/login`；已完成驗證訪問 login→`/players`
+
+**新增 `src/components/`**：
+- `AdminLayout.vue`：固定側邊欄（220px，slate-800）+ 頂部欄；RouterLink 導航五項（玩家/Gift Code/紀錄/監控/公告）；登出呼叫 `POST /api/auth/logout` + clear store + 跳回 /login
+- `ReverifyDialog.vue`：Teleport 彈窗；TOTP 6 位數輸入；呼叫 `POST /api/admin/totp/reverify`；emit `verified(token)` / `cancelled`；開啟時自動聚焦、Enter 送出
+- `Pagination.vue`：顯示 page/totalPages/total；emit `change(page)`
+
+**新增 `src/views/`**：
+- `LoginView.vue`：step 狀態機（credentials → totp）；credentials: POST /api/auth/login → GET /api/admin/me（驗 role=ADMIN）；totpEnabled=false 直接進後台；totpEnabled=true → totp step；TOTP/備用碼切換模式；POST /api/admin/totp/validate `{ code }` → 存 reverifyToken；備用碼（min 6, max 32）走同一 validate 端點
+- `PlayersView.vue`：搜尋（q/banned filter）+ 分頁 20 筆；ban/unban/adjust-balance 前檢查 `hasValidReverifyToken`；無效時先開 ReverifyDialog → `onReverified` 存 token → 繼續執行；高危 API 帶 `x-reverify-token` header；操作結果 Toast
+- `GiftCodeView.vue`：建立表單（amount/maxUses/expiresInDays/charmId?），`expiresInDays` → `expiresAt` ISO 轉換；產生成功彈窗一次性顯示 code（高亮 + 複製按鈕）；代碼列表含狀態（有效/已過期/已用完）；高危建立同樣走 ReverifyDialog → `x-reverify-token`
+- `RecordsView.vue`：三頁籤（登入/下注/交易）；共用篩選列（userId/from/to + 各頁籤額外篩選）；登入紀錄含結果徽章；下注紀錄可展開 detail JSON；交易紀錄含 delta 著色（正綠負紅）；分頁 PaginatedResult`<T>` 格式（`data` 不是 `items`）
+- `MonitorView.vue`：`setInterval(10s)` 輪詢 `GET /api/admin/monitor`；API 失敗顯示 warning banner 並改用 Mock 資料（M24 尚未實作）；CPU 使用率/溫度/記憶體/磁碟 progress bar（顏色分級：green/yellow/red）；線上人數/活躍房間/運行時間數值卡
+- `AnnouncementView.vue`：列表顯示所有公告；新增/編輯共用表單彈窗（title/content/active/startsAt/endsAt）；刪除確認彈窗；datetime-local input 與 ISO 8601 互轉
+
+**`src/App.vue`**：RouterView + TransitionGroup Toast 容器；全域 CSS（btn / card / form-control / table / badge / modal / toast 樣式類別）
+
+**`src/main.ts`**：createApp + createPinia + router + mount
+
+**新增依賴**（admin-frontend/package.json）：`axios ^1.7.9`、`pinia ^3.0.1`、`vue-router ^4.4.5`
+
+**TypeScript strict 0 errors（`vue-tsc --noEmit`）；Vite build ✅（118 modules, 1.32s）**
+
+## M23 驗收（DoD）
+
+- [x] 登入頁：帳密 → POST /api/auth/login → GET /api/admin/me → TOTP dialog（totpEnabled）→ validate → reverifyToken
+- [x] TOTP 備用碼：同一 validate 端點（code: min 6, max 32 字元）
+- [x] ReverifyDialog：TOTP 重驗 → POST /api/admin/totp/reverify → reverifyToken 存 Pinia
+- [x] 玩家管理：列表/搜尋/分頁；封鎖/解封/調幣（高危，帶 x-reverify-token）
+- [x] Gift Code：表單建立（高危）→ 一次性顯示 code + 複製；列表含狀態
+- [x] 紀錄查詢：三頁籤（登入/下注/交易）；共用篩選；PaginatedResult 格式正確
+- [x] 監控：10s 輪詢；API 失敗顯示 banner + Mock 資料
+- [x] 公告：CRUD + 確認刪除；datetime-local ↔ ISO 互轉
+- [x] 側邊欄佈局；登出 POST /api/auth/logout + 清 store + 跳 /login
+- [x] axios 攔截器：JWT 自動附加；401 換 token + 重試
+- [x] Navigation guard：未登入/未驗 TOTP 強制導向 /login
+- [x] TypeScript strict 0 errors；vite build 成功（118 modules）
+- [ ] 端對端真機驗證（需 PG + Redis + 後端完整啟動）
 
 ---
 

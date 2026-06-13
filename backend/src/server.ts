@@ -18,6 +18,7 @@ import { initSocketServer } from './sockets/index.js';
 import { registerJackpotJobs } from './jobs/jackpot-flush.job.js';
 import { registerDailyJobs } from './modules/daily/daily.jobs.js';
 import { registerLeaderboardJobs } from './jobs/leaderboard-refresh.job.js';
+import { registerMonitorScanJob } from './jobs/monitor-scan.job.js';
 import { env } from './config/env.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -38,6 +39,9 @@ export async function startServer(): Promise<void> {
 
   // M19：Leaderboard refresh(5m) + snapshot(00:00 TPE) repeatable jobs
   await registerLeaderboardJobs(app);
+
+  // M24：Monitor scan（每 10 分鐘更新 NET_WIN P99）
+  await registerMonitorScanJob(app);
 
   let closing = false;
   const shutdown = (signal: NodeJS.Signals): void => {

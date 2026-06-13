@@ -38,4 +38,6 @@ Thumbs.db
 
 # --- 本地工具與臨時檔案 ---
 .claude/
+memory/
 0612log.txt
+log.txt
