@@ -65,7 +65,17 @@ const slotRoutes: FastifyPluginAsync<SlotRoutesOptions> = async (app, opts) => {
         chat: createChatService({ prisma: app.prisma, redis: app.redis, log: app.log }),
         log: app.log,
       }),
-      anomaly: createAnomalyDetector(app.redis, { log: app.log }),
+      anomaly: createAnomalyDetector(app.redis, {
+        log: app.log,
+        onFlag: (userId, reason) => {
+          // 寫入 User.flagged（fire-and-forget；失敗僅記日誌，不中斷下注流程）
+          void app.prisma.user
+            .updateMany({ where: { id: userId, flagged: false }, data: { flagged: true } })
+            .catch((err: unknown) => {
+              app.log.warn({ err, userId, reason }, 'anomaly: 標記 User.flagged 失敗');
+            });
+        },
+      }),
       log: app.log,
     });
 

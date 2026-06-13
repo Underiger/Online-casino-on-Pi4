@@ -31,6 +31,7 @@ import achievementRoutes from './modules/achievement/achievement.routes.js';
 import adminRoutes, { publicAnnouncementRoutes } from './modules/admin/admin.routes.js';
 import giftCodeRoutes from './modules/gift-code/gift-code.routes.js';
 import recordRoutes from './modules/record/record.routes.js';
+import monitorRoutes from './modules/monitor/monitor.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -137,6 +138,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(giftCodeRoutes, { prefix: '/api/gift-codes' });
   // M22：管理後台紀錄查詢（JWT + role===ADMIN）
   await app.register(recordRoutes, { prefix: '/api/admin/records' });
+  // M24：系統監控（adminOnly GET /api/admin/monitor）
+  await app.register(monitorRoutes, { prefix: '/api/admin' });
 
   // 健康檢查：Nginx upstream check 與 docker healthcheck 都打這支
   app.get('/healthz', async () => ({ ok: true }));
