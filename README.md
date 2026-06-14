@@ -4,8 +4,8 @@
 
 | 層 | 技術 |
 |---|---|
-| 後端 | Node.js 20 + TypeScript 5 (strict) + Fastify 4 + Socket.IO 4 + Prisma 5 + BullMQ 5 |
-| 前端 | Vue 3 + Vite 5 + Pinia + Vue Router（玩家端 `frontend/`、管理後台 `admin-frontend/`）|
+| 後端 | Node.js 20 + TypeScript 5 (strict) + Fastify 5 + Socket.IO 4 + Prisma 5 + BullMQ 5 |
+| 前端 | Vue 3 + Vite 6 + Pinia + Vue Router（玩家端 `frontend/`、管理後台 `admin-frontend/`）|
 | 共用 | `packages/shared` — 前後端共用 DTO / Socket 事件 / Enum（單一真值來源）|
 | 資料 | PostgreSQL 16（dev 亦可用 SQLite）+ Redis 7 |
 
@@ -237,3 +237,92 @@ bash scripts/deploy.sh
 | Node.js App | 512 MB | cluster ×2 workers，共用 |
 | Redis | 256 MB | maxmemory 200 MB + LRU |
 | Nginx | 64 MB | TLS 終止 + 靜態檔案 |
+
+---
+
+## 環境變數說明
+
+完整範本見 `.env.example`。執行 `bash scripts/gen-secrets.sh` 可自動填入機密值。
+
+| 變數 | 必填 | 說明 |
+|------|------|------|
+| `NODE_ENV` | ✅ | `development` / `production` |
+| `PORT` | | 後端監聽 port（預設 `3000`）|
+| `LOG_LEVEL` | | `fatal/error/warn/info/debug`（生產建議 `warn`）|
+| `WORKERS` | | Node.js cluster fork 數（預設 `2`，Pi 4 上限 `2`）|
+| `SOCKET_MAX_CONNECTIONS` | | Socket.IO 最大同時連線數（預設 `200`）|
+| `DATABASE_URL` | ✅ | PostgreSQL 連線字串（開發用 `localhost`，生產用服務名 `postgres`）|
+| `REDIS_URL` | ✅ | Redis 連線字串（開發用 `localhost`，生產用服務名 `redis`）|
+| `JWT_SECRET` | ✅ | JWT HS256 簽章金鑰（≥ 64 hex chars）|
+| `JWT_ACCESS_TTL` | | Access Token 效期（預設 `15m`）|
+| `REFRESH_TOKEN_TTL_DAYS` | | Refresh Token 效期（預設 `7` 天）|
+| `AES_256_GCM_KEY` | ✅ | AES-256-GCM 金鑰（恰 64 hex chars，TOTP secret 加密用）|
+| `ADMIN_USERNAME` | | 初始管理員帳號（預設 `admin`）|
+| `ADMIN_INITIAL_PASSWORD` | ✅ | 初始管理員密碼（首次部署後請立即更改）|
+| `ALERT_WEBHOOK_URL` | | 異常通知 Webhook（可選，留空則停用）|
+
+> **安全提醒**：`.env` / `.env.production` 已列入 `.gitignore`，嚴禁提交至版本控制。
+
+---
+
+## 測試指令
+
+```bash
+# 執行全部後端單元 + 整合測試（376 條，無需 PG/Redis）
+npm test
+
+# 產生覆蓋率報告（輸出至 backend/coverage/）
+npm run test:coverage
+
+# 安全演練腳本（需執行中的後端 + PostgreSQL + Redis）
+npm run test:security
+
+# RTP 蒙地卡羅模擬（1000 萬次，驗證 RTP ∈ [90%, 94%]）
+npm run rtp:simulate
+
+# 老虎機負載測試（需 k6 + 後端服務）
+npm run loadtest:spin
+
+# 輪盤 WebSocket 壓力測試（需 k6 + 後端服務）
+npm run loadtest:roulette
+
+# 混合場景壓測（老虎機 + 輪盤各 100 VU × 5 分鐘）
+npm run loadtest:mixed
+
+# 全 workspace 型別檢查
+npm run typecheck
+
+# ESLint（後端：Math.random 禁用 + 餘額鐵律）
+npm run lint
+
+# 資料庫帳目對帳（三項不變量）
+npm run -w backend audit:balance
+```
+
+---
+
+## 已知限制
+
+| 項目 | 說明 |
+|------|------|
+| 聊天室自動禁言 | 洗頻偵測（`RATE_LIMIT_BURST`/`RATE_LIMIT_MINUTE`）已實作，但自動禁言功能未完成（M27 演練建議項）|
+| 禁言自動解除 | `setMute` 已記錄 `mutedUntil`，但自動解除的 BullMQ 延遲任務尚未排程 |
+| Pi 4 真機端對端 | M25–M27 各階段均有「需執行中後端 + PG + Redis」的驗收項待實機驗證 |
+| Provably Fair | `serverSeedHash` 已落庫（`sha256(rngBytes(32))`），但客戶端驗證介面尚未對外開放 |
+| Roulette HMAC | 輪盤下注目前透過 Socket.IO payload 攜帶 HMAC，HTTP 備援路由不存在 |
+| 聊天 URL 過濾 | 以正則過濾 `https?://` 及裸域名，不包含短網址 / 協定相對網址 |
+
+---
+
+## 貢獻指南
+
+本專案以教育與娛樂為目的，採閉源維護。如需回報問題或提交改善建議：
+
+1. **閱讀文件**：先閱讀 `docs/PROJECT_STATE.md`（進度與已知問題）及 `docs/04_API_SPEC.md`（API 規格）。
+2. **保持 Server Authoritative**：所有遊戲邏輯必須由後端決定，Client 不得影響任何遊戲結果。
+3. **餘額鐵律**：任何涉及 `users.balance` 的修改，必須透過 `backend/src/modules/wallet/wallet.service.ts`，ESLint 規則會自動攔截違規。
+4. **不使用 `Math.random()`**：全專案唯一亂數出口為 `backend/src/security/csprng.ts`。
+5. **測試覆蓋率**：新增後端邏輯時需附帶單元測試，目標覆蓋率 ≥ 80%（安全模組 100%）。
+6. **Commit Message 規範**：遵循 `feat/fix/chore/docs/test(scope): 說明` 格式。
+
+> 本平台僅使用虛擬遊戲幣，不涉及任何真實金錢、儲值、提領或兌換功能。

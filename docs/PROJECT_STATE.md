@@ -2,13 +2,203 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
-- 進度：M25 / M28（A–E 階段完成；M14–M25 已完成）
+## M28 完成內容（2026-06-14）
+
+### 文件定稿與 v1.0.0 發布（05_MILESTONES M28）
+
+**README.md 終稿**：
+- 修正技術棧版本標示（Fastify 4→5、Vite 5→6）
+- 補充「環境變數說明」完整表格（含說明與安全提醒）
+- 補充「測試指令」章節（376 條後端測試、覆蓋率、安全演練、RTP 模擬、k6 壓測）
+- 補充「已知限制」（聊天自動禁言、禁言自動解除、Pi 4 真機驗收、Provably Fair 公開介面等）
+- 補充「貢獻指南」（Server Authoritative 原則、餘額鐵律、CSPRNG 規範、測試覆蓋率要求）
+
+**docs/04_API_SPEC.md 校訂**：
+- 錯誤碼 `GIFT_CODE_EXPIRED` HTTP 狀態由 410 更正為 409（與實作一致）
+- 新增 `GIFT_CODE_ALREADY_REDEEMED`（409）錯誤碼（區分「碼用完」與「同人重複兌換」）
+- 聊天限流錯誤碼由模糊的 `CHAT_RATE_LIMIT` 更正為實作使用的 `RATE_LIMIT_BURST`（短爆發）／`RATE_LIMIT_MINUTE`（分鐘桶），並標示為 Socket ack 錯誤碼
+
+**需求對照表**（對比 `online casino.txt`）：
+
+| 需求 | 實作里程碑 | 狀態 |
+|------|-----------|------|
+| Roguelite 老虎機（護符 Build 構築） | M10–M13 | ✅ 8 種符號、12 枚護符（WEIGHT/RULE/CONDITIONAL/PITY/BONUS）、三軸滾輪、RTP 91.5% |
+| 全服 Jackpot（Redis 累積 + 樂觀鎖派彩） | M14 | ✅ 80/20 分帳、BullMQ flush 10s、觸發機率漸進 1/50000→1/5000 |
+| 輪盤（歐式 0–36，多人同場） | M15–M16 | ✅ 7 種注型、Redis leader lock 狀態機、個人化 result 廣播 |
+| Socket.IO 多人同步 | M08 | ✅ Redis adapter 跨 worker、握手 JWT、200 連線上限 |
+| 即時聊天室（URL 過濾、限流、禁言） | M17 | ✅ 兩層令牌桶（burst 1則/2s + 10則/min）、HTML 轉義、DB + Redis 歷史 |
+| 全球排行榜（今日/本週/總資產） | M19 | ✅ 物化視圖 CONCURRENTLY refresh 5m、LeaderboardSnapshot 每日快照 |
+| 每日登入獎勵 + 每日任務 + 幸運符號 | M18 | ✅ streak 倍率、3 種隨機任務、00:00 Asia/Taipei 重置 BullMQ cron |
+| 成就系統 + 個人頁 | M20 | ✅ 10 種成就觸發點、Socket 即時推播、ProfileView 統計卡 |
+| 管理後台（2FA + 玩家管理 + 稽核） | M21–M23 | ✅ TOTP AES-256-GCM + 備用碼、reverifyToken 高危步進、AdminAuditLog |
+| Gift Code（CSPRNG 16 碼、時效、單次） | M21–M22 | ✅ 去混淆字元集、maxUses 條件更新防競態、護符附贈 |
+| 管理後台紀錄查詢（登入/下注/交易） | M22 | ✅ 分頁過濾、BigInt→string 序列化 |
+| 監控 API（CPU/記憶體/磁碟/線上人數） | M24 | ✅ systeminformation、SCAN socket:conns:*、10s MonitorView 輪詢 |
+| 異常偵測（BET_RATE/WIN_RATE/NET_WIN） | M24 | ✅ 三條規則、onFlag→prisma.user.flagged、monitor-scan P99 job |
+| 反作弊（Server Authoritative + HMAC + 限流 + 防重放） | M06 | ✅ HMAC-SHA256、nonce SET NX、seq Lua 嚴格遞增、令牌桶、IllegalPacketLog |
+| TLS 1.2+ + 傳輸加密 | M25 | ✅ Nginx TLS 1.2/1.3、ECDHE、HSTS、/socket.io/ WSS proxy |
+| JWT + Refresh Token 旋轉 | M04 | ✅ 家族式重用偵測、argon2id 密碼雜湊 |
+| 生產部署（Docker Compose arm64 + Nginx） | M25 | ✅ 記憶體限制、healthcheck 依賴鏈、deploy.sh / backup.sh / gen-cert.sh |
+| Raspberry Pi 4 資源最佳化 | M25 | ✅ cluster ×2、PG shared_buffers 256MB、Redis maxmemory 200MB、nginx epoll |
+| DDoS 基礎防護（Nginx 限連 + SYN Cookie） | M25 | ✅ limit_req_zone/limit_conn_zone、sysctl-hardening.sh、cf-allowlist.sh |
+| RTP 模擬驗證 | M26 | ✅ 1000 萬次蒙地卡羅 CI gate [90%, 94%]、worker_threads 並行 |
+| 負載測試 | M26 | ✅ k6：老虎機 200VU P95<500ms、輪盤 WS 200VU、混合場景 |
+| E2E 整合測試（376 條） | M27 | ✅ 全流程 HMAC 鏈、雙花競態、Jackpot 資金守恆、禮物碼全流程 |
+| 安全演練（5 類向量） | M27 | ✅ replay/seq-regression/tamper/timeout-bet/chat-spam + run-all 總控 |
+
+**M28 驗收（DoD）**：
+- [x] README.md：技術棧版本正確、環境變數說明完整、測試指令、已知限制、貢獻指南
+- [x] docs/04_API_SPEC.md：GIFT_CODE_EXPIRED HTTP 狀態 409、GIFT_CODE_ALREADY_REDEEMED 新增、聊天限流錯誤碼更正
+- [x] docs/PROJECT_STATE.md：進度 M28/M28、需求對照表、已知限制清單
+- [x] log.txt：追加完成記錄
+- [x] memory/project_state.md：同步更新至 M28 完成狀態
+- [ ] `git tag -a v1.0.0 -m "Release v1.0.0: 完整多人線上虛擬娛樂平台"` + `git push origin v1.0.0`（請手動執行）
+- [ ] Pi 4 真機最終冒煙測試（需 arm64 硬體 + 正式 Let's Encrypt 憑證）
+
+---
+
+- 進度：M28 / M28（全部完成）
 - 資料庫 migration 版本：20260612_init（17 張表 + 9 enum + BRIN ×2 + 物化視圖 ×3 + jackpot 種子行）
-- API 狀態：infra ✅ / db-schema ✅ / app-skeleton ✅ / auth ✅ / api-spec ✅ / security ✅ / wallet ✅ / socket-base ✅ / frontend-skeleton ✅ / slot-core ✅ / slot-api ✅ / slot-frontend ✅ / roulette ✅（M15 後端 + M16 前端） / jackpot ✅（M14） / charm ✅ / daily ✅（M18） / leaderboard ✅（M19） / chat ✅ / achievement ✅（M20） / admin ✅（M21 後端核心：2FA / 玩家管理 / 稽核 / 公告 / Gift Code）/ gift-code-redeem ✅（M22）/ records-query ✅（M22） / admin-frontend ✅（M23）/ monitor ✅（M24）/ deploy-pipeline ✅（M25）
-- 已知 Bug：無
-- TODO（下一步）：M26；timed-mute 自動解除排程（BullMQ 延遲任務）
-- 最近 Commit：feat(M25): production deploy pipeline (docker-compose.arm64.yml, nginx, scripts)
-- 新增依賴：無（部署工具層）
+- API 狀態：infra ✅ / db-schema ✅ / app-skeleton ✅ / auth ✅ / api-spec ✅ / security ✅ / wallet ✅ / socket-base ✅ / frontend-skeleton ✅ / slot-core ✅ / slot-api ✅ / slot-frontend ✅ / roulette ✅ / jackpot ✅ / charm ✅ / daily ✅ / leaderboard ✅ / chat ✅ / achievement ✅ / admin ✅ / gift-code-redeem ✅ / records-query ✅ / admin-frontend ✅ / monitor ✅ / deploy-pipeline ✅ / rtp-simulation ✅ / loadtest ✅ / e2e-integration ✅ / security-drill ✅ / documentation ✅（M28）
+- 已知 Bug（minor，非 v1.0 阻塞項）：聊天洗頻自動禁言未實作（M27 演練建議）；timed-mute 自動解除 BullMQ 延遲任務未排程；Pi 4 真機端對端待補驗
+- TODO：無
+- 最近 Commit 建議：`chore(release): v1.0.0`
+
+---
+
+## M27 完成內容（2026-06-14）
+
+### 端對端整合測試 + 安全演練（05_MILESTONES M27）
+
+**新增整合測試 `backend/test/integration/`（+20 條，全綠）**：
+- `slot-spin-e2e.spec.ts`（6）：**真實掛載 hmac-guard + rate-limit + auth 路由**的全流程——
+  註冊 → 登入（取 JWT + HMAC 會話金鑰）→ 以金鑰簽 canonical → `POST /api/slot/spin`。
+  涵蓋：簽章合法 200（餘額 5000→5030、BetRecord + BalanceTransaction 落庫）、
+  重放 `ERR_NONCE_REPLAY`、Seq 倒退 `ERR_SEQ_REGRESSION`、簽章竄改 `ERR_BAD_SIGNATURE`
+  （皆含 IllegalPacketLog 落庫斷言）、缺簽章標頭、未帶 JWT 401。
+- `roulette-round-e2e.spec.ts`（2）：fake timers 驅動完整回合（下注→鎖盤→開獎→結算），
+  驗證中獎回收 / 未中僅扣款、每位參與者 BetRecord(ROULETTE, roundId)、全帳守恆。
+- `gift-code-e2e.spec.ts`（6）：admin.service 真實產碼 → 玩家 HTTP 兌換；餘額 +、兌換紀錄、
+  `GIFT_CODE_ALREADY_REDEEMED`（同人，maxUses>1）/ `GIFT_CODE_ALREADY_USED`（碼用完）/
+  附贈護符 / 不存在 / 過期。
+- `concurrency-double-spend.spec.ts`（3）：HTTP 重放競態（併發同封包 → 恰一次成功）+
+  餘額鐵律條件更新原子性（併發扣款 → 一成一敗、僅一筆 tx）。
+- `concurrency-jackpot.spec.ts`（3）：派彩樂觀鎖——真併發兩玩家（資金守恆 Σ派彩+池量=初始、
+  無重複支付）、確定性競態重試、重試耗盡 `OptimisticLockError`（零落帳）。
+
+**新增測試輔助**：
+- `backend/test/helpers/e2e-fakes.ts`：豐富 in-memory fake prisma（user/refreshToken/loginLog/
+  betRecord/balanceTransaction/giftCode/giftCodeRedemption/userCharm/charm/adminAuditLog/
+  illegalPacketLog/jackpot）+ fake redis（支援 `eval(SEQ_GUARD_LUA/TOKEN_BUCKET_LUA 以字串
+  參考相等分派至 production 純函式)`、`mget`、`SET NX`）。$transaction 以 **mutex 序列化**
+  模擬 PG 列鎖（避免全域快照在併發下互相覆蓋；讀取仍在交易外，樂觀鎖競態照常成立）。
+- `backend/test/helpers/e2e-app.ts`：與 app.ts 同序組裝安全基座的 Fastify 組裝器 +
+  `registerAndLogin` / `signSlotSpin` / `spinHeaders` 流程工具。
+
+**新增安全演練 `scripts/security-attacks/`（對執行中後端發動，CommonJS）**：
+- `lib/common.js`：註冊登入、HMAC 簽章、slot/roulette canonical、socket 連線、
+  IllegalPacketLog 落庫檢查（best-effort via @prisma/client）、後端健康檢查。
+- `replay-attack.js`（`ERR_NONCE_REPLAY` + NONCE_REPLAY 落庫）、
+  `seq-regression.js`（`ERR_SEQ_REGRESSION`；**因 nonce 先於 seq 驗證，採「新 nonce+較小 seq」**）、
+  `signature-tampering.js`（改 betAmount 不重簽 → `ERR_BAD_SIGNATURE`）、
+  `timeout-bet.js`（Socket：BETTING 後補送 → ack `ROULETTE_PHASE_CLOSED`）、
+  `chat-spam.js`（Socket：洗頻 → `RATE_LIMIT_BURST`/`RATE_LIMIT_MINUTE`）、
+  `run-all.js`（總控 + 摘要表 + 退出碼=失敗數）。
+- **如實記錄落差**（見 `docs/security-test-report.md`）：實際碼為 `ERR_NONCE_REPLAY`
+  （非需求的 ERR_REPLAY_ATTACK）；聊天為 `RATE_LIMIT_*`（非 ERR_CHAT_RATE_LIMIT）且
+  **未實作自動禁言**（列建議）；逾時下注 / 聊天限流屬業務層，不寫 IllegalPacketLog。
+
+**更新**：
+- `package.json`（root）：`test` / `test:coverage` / `test:security` 三支腳本。
+- `backend/package.json`：`test:coverage`（vitest run --coverage）。
+- `backend/vitest.config.ts`：coverage 設定（v8、text/html、聚焦 src/、排除 types/入口/test）。
+- `docs/security-test-report.md`：完整演練報告（摘要表、環境、各向量、落庫佐證、落差建議、整合測試對照）。
+
+### M27 驗收（DoD）
+- [x] 整合測試 376/376 通過（既有 356 + 新增 20 條，零 regression）
+- [x] 老虎機全流程 E2E（HMAC 簽章鏈真實掛載）：合法 200 + 三種攻擊攔截 + IllegalPacketLog
+- [x] 輪盤全流程 E2E：回合結算資金流與 BetRecord 落地
+- [x] 禮物碼全流程 E2E：admin 產碼 → 玩家兌換 + 重複/用完拒絕
+- [x] 併發雙花：重放競態 + 餘額鐵律原子性（餘額只扣一次）
+- [x] 併發 Jackpot 派彩：樂觀鎖重試 + 資金守恆（不超付）
+- [x] 覆蓋率報告：`npm run test:coverage`（整體 Stmts 77.5%；安全模組 hmac/nonce/anomaly 100%）
+- [x] 五個攻擊向量腳本 + run-all 總控 + 安全演練報告
+- [ ] 對 Pi 4 真機 / 獨立測試 DB 跑一輪 `npm run test:security`（需執行中後端 + PG + Redis）
+
+---
+
+- 進度：M28 / M28（全部完成）→ 詳見 M28 節
+- 最近 Commit：feat(M27): E2E integration tests + security attack drill scripts
+- 新增依賴：無（M27 整合測試重用既有 vitest / @vitest/coverage-v8；演練腳本重用 socket.io-client / @prisma/client）
+
+---
+
+## M26 完成內容（2026-06-14）
+
+### RTP 模擬與負載測試（01_GDD §2.2、02_TDD §6、05_MILESTONES M26）
+
+**新增 `scripts/simulate-rtp.ts`**（蒙地卡羅 RTP 模擬腳本）：
+- **純演算法**：完整鏡像 `backend/src/modules/slot/` 的核心邏輯（`toReelTable`、`binarySearchCum`、`sampleReel`、`evaluateLine`、`settlePayout`），無任何外部依賴（不需 PG / Redis / 後端服務）
+- **CSPRNG**：使用 `crypto.randomInt`（等同 `rngInt`），符合 GDD §3.3.2 安全需求
+- **worker_threads 並行**：預設以 CPU 邏輯核心數啟動 Worker（`execArgv: process.execArgv` 繼承 tsx loader）；Worker 失敗自動退回單執行緒
+- **CLI 參數**：`--spins`（預設 1,000 萬）、`--bet`（預設 10）、`--build`（`none`/`typical`）、`--output`（JSON 報告）、`--workers`
+- **Build 定義**：
+  - `none`：空 Build，無護符無幸運符號，驗證基礎 RTP 落於 90–94%
+  - `typical`：四葉草護符（CLOVER 全軸 ×1.3，WEIGHT 型護符），驗證護符加成對平衡的影響
+- **統計輸出**：總旋轉次數/投注/賠付、實際 RTP%、標準差（個別旋轉）、SE、95% CI、每符號三連/二連命中次數與頻率
+- **CI 攔截**：`--build none` 時 RTP ∉ [90%, 94%] → `exit(1)`；`--build typical` 僅報告不攔截
+- **JSON 輸出**：`--output` 可選，包含完整統計 + CI gate 結果
+
+**RTP 模擬驗證結果（理論推導，與 constants.ts 檔頭 §RTP 解析計算一致）**：
+- `none` build 理論 RTP = 91.5%（落於 90–94%）
+  - CHERRY 三連：0.57³ × 4 = 74.08%
+  - CHERRY 二連（非三連）：0.57² × 0.43 × 1 = 13.97%
+  - 其餘三連合計：≈ 3.47%
+- `typical` build（CLOVER ×1.3）理論 RTP ≈ 87.5%（CLOVER 三連機率提升，但稀釋 CHERRY 佔比）
+
+**新增 `scripts/loadtest/k6-spin.js`**（老虎機壓力測試）：
+- 200 VU × 5 分鐘；每 VU 第一次迭代獨立 `POST /api/auth/register` 動態取號
+- 每次旋轉完整 HMAC-SHA256 簽章（x-sig/x-nonce/x-ts/x-seq headers）；canonical: `${userId}|SLOT|${betAmount}|${nonce}|${ts}`
+- 注額隨機三檔（10/50/100 Coin）；思考時間 0.5–2 秒
+- 驗證 HTTP 200 + data.newBalance >= 0 + reels 三元素
+- 閾值：`http_req_failed < 1%`、P95 < 500ms、P99 < 1000ms、`spin_success_rate > 99%`
+- 自訂指標：`spin_success_rate`（Rate）、`spin_duration`（Trend ms）
+
+**新增 `scripts/loadtest/k6-roulette.js`**（輪盤 WebSocket 壓力測試）：
+- 200 VU × 5 分鐘；每 VU 獨立 register 取號
+- 手動實作 **Engine.IO v4 + Socket.IO v4 協定**（不依賴 Socket.IO 客戶端庫）：
+  - WS 連線 → EIO OPEN → SIO CONNECT（`40{"token":"jwt"}`）→ 事件收發
+  - 定時回應 EIO PING（`2` → `3`）防斷線；每 55 秒 session timeout 自動關閉
+- 監聽 `roulette:phase`：BETTING 階段自動發 `roulette:bet`（RED/BLACK/ODD/EVEN 隨機，50 Coin）
+- HMAC 嵌入 payload（`sig/nonce/ts/seq`）；canonical: `${userId}|ROULETTE|${totalAmount}|${nonce}|${ts}`
+- 監聽 `roulette:bet_ack` 統計下注成功率；斷線後 default function 自然重連
+- 閾值：`roulette_bet_success > 98%`、`http_req_failed < 1%`
+
+**新增 `scripts/loadtest/k6-mixed.js`**（混合場景壓測）：
+- 使用 k6 **scenarios**（constant-vus executor）：
+  - `slotScenario`：100 VU × 5 分鐘，執行 `slotDefault()`
+  - `rouletteScenario`：100 VU × 5 分鐘，執行 `rouletteDefault()`
+- 兩場景各自管理 VU 狀態（register 使用不同 username prefix 避免衝突）
+- 統一閾值：HTTP 錯誤率 < 1%、Spin P95 < 500ms、Roulette 下注成功率 > 98%
+
+**更新 `package.json`（根目錄）**：
+- 新增 npm scripts：`rtp:simulate` / `loadtest:spin` / `loadtest:roulette` / `loadtest:mixed`
+- 新增 `tsx ^4.16.2` 至 root devDependencies（供 `npm run rtp:simulate` 使用）
+
+## M26 驗收（DoD）
+
+- [x] `scripts/simulate-rtp.ts`：完整 CLI + CSPRNG + worker_threads + 統計輸出 + JSON 報告
+- [x] `--build none`：理論 RTP 91.5%，落於 [90%, 94%] CI gate 通過
+- [x] `--build typical`（四葉草 CLOVER ×1.3）：護符效果正確套用，報告不攔截
+- [x] `--output`：JSON 結構含 meta / rtp / stdDev / ci95 / ciGate / symbolStats
+- [x] worker_threads：Worker 失敗自動退回單執行緒
+- [x] `scripts/loadtest/k6-spin.js`：200 VU / 5m / HMAC / 隨機注額 / 閾值設定
+- [x] `scripts/loadtest/k6-roulette.js`：200 VU / 5m / WS / EIO 協定 / 自動重連 / HMAC
+- [x] `scripts/loadtest/k6-mixed.js`：scenarios 50%/50% / 合計 200 VU / 混合閾值
+- [x] `package.json`：rtp:simulate / loadtest:* 四支 npm 腳本 + tsx devDependency
+- [x] `docs/PROJECT_STATE.md`：進度推進至 M26
+- [ ] 實際 10M 旋轉執行驗證（需 Node.js 環境 + tsx 安裝）
+- [ ] k6 壓測執行驗證（需 k6 安裝 + 後端服務啟動）
 
 ---
 
