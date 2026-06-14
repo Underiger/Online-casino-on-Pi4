@@ -22,11 +22,19 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,vue,json,md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{ts,vue,json,md,yml,yaml}\""
+    "format:check": "prettier --check \"**/*.{ts,vue,json,md,yml,yaml}\"",
+    "rtp:simulate": "tsx scripts/simulate-rtp.ts",
+    "loadtest:spin": "k6 run scripts/loadtest/k6-spin.js",
+    "loadtest:roulette": "k6 run scripts/loadtest/k6-roulette.js",
+    "loadtest:mixed": "k6 run scripts/loadtest/k6-mixed.js",
+    "test": "npm run test --workspace=backend",
+    "test:coverage": "npm run test:coverage --workspace=backend",
+    "test:security": "node scripts/security-attacks/run-all.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "tsx": "^4.16.2"
   },
   "overrides": {
     "fast-uri": "^3.1.2"

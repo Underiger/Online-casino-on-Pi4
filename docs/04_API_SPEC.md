@@ -1040,15 +1040,17 @@ DELETE 回 `204`，其他回 `200`（型別：`AnnouncementItem`）或 `201`。
 | 409 | `USERNAME_TAKEN` | 使用者名稱已被使用 |
 | 409 | `SLOT_OCCUPIED` | 護符槽位已有其他護符 |
 | 409 | `TASK_ALREADY_CLAIMED` | 任務今日已領取 |
-| 409 | `GIFT_CODE_ALREADY_USED` | Gift Code 已被此帳號兌換或已達上限 |
-| 410 | `GIFT_CODE_EXPIRED` | Gift Code 已過期 |
+| 409 | `GIFT_CODE_ALREADY_USED` | Gift Code 已達使用上限 |
+| 409 | `GIFT_CODE_ALREADY_REDEEMED` | Gift Code 已被此帳號兌換過（同人重複） |
+| 409 | `GIFT_CODE_EXPIRED` | Gift Code 已過期 |
 | 422 | `INSUFFICIENT_BALANCE` | 餘額不足（條件更新 affectedRows=0） |
 | 422 | `ROULETTE_PHASE_CLOSED` | 輪盤非 BETTING 階段，不接受下注 |
 | 422 | `BET_LIMIT_EXCEEDED` | 超過單注上限或單回合總注上限 |
 | 422 | `JACKPOT_OPTIMISTIC_LOCK` | Jackpot 樂觀鎖衝突（≤3 次重試均失敗） |
 | 422 | `CHAT_MUTED` | 帳號已被禁言 |
-| 429 | `RATE_LIMIT_EXCEEDED` | API 或聊天頻率超限 |
-| 429 | `CHAT_RATE_LIMIT` | 聊天專屬頻率超限 |
+| 429 | `RATE_LIMIT_EXCEEDED` | API 頻率超限（HTTP 路由） |
+| 429 | `RATE_LIMIT_BURST` | 聊天短爆發限流（≤ 1 則/2s；Socket ack 錯誤碼） |
+| 429 | `RATE_LIMIT_MINUTE` | 聊天分鐘限流（≤ 10 則/min；Socket ack 錯誤碼） |
 | 500 | `INTERNAL_ERROR` | 伺服器內部錯誤（不洩漏細節） |
 
 ---
