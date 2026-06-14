@@ -192,6 +192,9 @@ export function createAnomalyDetector(redis: Redis, options: AnomalyDetectorOpti
       values.sort((a, b) => a - b);
       const idx = Math.min(Math.floor(values.length * 0.99), values.length - 1);
       const p99 = values[idx];
+      // values 非空（上方已 return）且 idx 已 clamp 至 [0, len-1]，p99 必為 number；
+      // 此 guard 僅滿足 noUncheckedIndexedAccess 的型別收斂，執行期不會觸發。
+      if (p99 === undefined) return;
 
       await redis.set(p99Key(dateKey), p99, 'EX', 86400 * 2);
       options.log?.warn(

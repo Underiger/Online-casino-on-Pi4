@@ -4,6 +4,20 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.spec.ts'],
+    // 覆蓋率（npm run test:coverage）：v8 provider，聚焦 src/，排除型別/入口/測試輔助
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'html'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.ts'],
+      exclude: [
+        'src/**/*.types.ts',
+        'src/server.ts',
+        'src/cluster.ts',
+        'src/**/index.ts',
+        'test/**',
+      ],
+    },
     // config/env.ts 於 import 時驗證環境變數（fail loud），測試進程先備齊
     env: {
       NODE_ENV: 'test',
