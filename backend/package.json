@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "audit:balance": "tsx scripts/audit-balance.ts",
     "postinstall": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
