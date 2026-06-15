@@ -71,7 +71,6 @@ npm run -w backend prisma:migrate   # = prisma migrate dev
 npm run -w backend prisma:seed      # 種子資料：jackpot、護符池、任務池、Admin 帳號
 ```
 
-
 ### 5. 啟動開發伺服器
 
 ```bash
