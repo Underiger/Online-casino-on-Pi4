@@ -149,6 +149,8 @@
 | Prisma | `getPackedPackage` RCE | **不適用** | 僅影響 CLI 建置/測試路徑，非 runtime；惟 5.22 已落後（v6 已釋出），建議排程升級 |
 | argon2 / otplib / ioredis / BullMQ | — | **無已知高危 CVE** | 維持現行版本；BullMQ/ioredis 之真實風險向量為後端 Redis 本身（見 §三.1） |
 | esbuild | GHSA-gv7w-rqvm-qjhr（Deno 模組二進位下載缺少完整性驗證，< 0.28.1；Dependabot alert #1，2026-06-12 揭露；**CVSS 8.1**） | **不適用 / 已修補** | lockfile 解析 **0.28.1**（修補版）；漏洞攻擊路徑限於 Deno 執行環境（`NPM_CONFIG_REGISTRY` 劫持），本專案為 Node.js npm 安裝，向量不成立 |
+| ws | CVE-2026-48779 GHSA-96hv-2xvq-fx4p（tiny-fragment 記憶體耗盡 DoS，>= 8.0.0, < 8.21.0；Dependabot alert #2；**CVSS 7.5**） | ✅ **已修補** | overrides 釘選 `ws@^8.21.0`；lockfile 已解析 **8.21.0**（2026-06-16）。後端 socket.io/engine.io 使用 ws，DoS 向量確實存在，需修補。 |
+| form-data | CVE-2026-12143 GHSA-hmw2-7cc7-3qxx（multipart 欄位名未跳脫 CRLF 注入，>= 4.0.0, < 4.0.6；Dependabot alert #3；**CVSS 7.5**） | ✅ **已修補** | overrides 釘選 `form-data@^4.0.6`；lockfile 已解析 **4.0.6**（2026-06-16）。axios 傳遞依賴，前端 SPA 走原生 FormData，實際影響極低；仍一併修補。 |
 
 ---
 
@@ -187,6 +189,8 @@
 - zod：[CVE-2023-4316 Snyk](https://security.snyk.io/vuln/SNYK-JS-ZOD-5925617)
 - Vue：[CVE-2024-6783 SentinelOne](https://www.sentinelone.com/vulnerability-database/cve-2024-6783/)
 - esbuild：[GHSA-gv7w-rqvm-qjhr（esbuild 官方 advisory）](https://github.com/evanw/esbuild/security/advisories/GHSA-gv7w-rqvm-qjhr)
+- ws：[CVE-2026-48779 GHSA-96hv-2xvq-fx4p](https://github.com/advisories/GHSA-96hv-2xvq-fx4p)
+- form-data：[CVE-2026-12143 GHSA-hmw2-7cc7-3qxx](https://github.com/advisories/GHSA-hmw2-7cc7-3qxx)
 
 ---
 
