@@ -148,7 +148,7 @@
 | Vue | CVE-2024-6783（prototype pollution XSS） | **不適用** | 該漏洞屬 Vue 2 `vue-template-compiler`；本專案 Vue **3.5.38** |
 | Prisma | `getPackedPackage` RCE | **不適用** | 僅影響 CLI 建置/測試路徑，非 runtime；惟 5.22 已落後（v6 已釋出），建議排程升級 |
 | argon2 / otplib / ioredis / BullMQ | — | **無已知高危 CVE** | 維持現行版本；BullMQ/ioredis 之真實風險向量為後端 Redis 本身（見 §三.1） |
-| esbuild | GHSA-gv7w-rqvm-qjhr（Deno 模組二進位下載缺少完整性驗證，< 0.28.1；Dependabot alert #1，2026-06-12 揭露） | **不適用 / 已修補** | lockfile 解析 **0.28.1**（修補版）；漏洞攻擊路徑限於 Deno 執行環境（`NPM_CONFIG_REGISTRY` 劫持），本專案為 Node.js npm 安裝，向量不成立 |
+| esbuild | GHSA-gv7w-rqvm-qjhr（Deno 模組二進位下載缺少完整性驗證，< 0.28.1；Dependabot alert #1，2026-06-12 揭露；**CVSS 8.1**） | **不適用 / 已修補** | lockfile 解析 **0.28.1**（修補版）；漏洞攻擊路徑限於 Deno 執行環境（`NPM_CONFIG_REGISTRY` 劫持），本專案為 Node.js npm 安裝，向量不成立 |
 
 ---
 
