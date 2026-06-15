@@ -148,6 +148,7 @@
 | Vue | CVE-2024-6783（prototype pollution XSS） | **不適用** | 該漏洞屬 Vue 2 `vue-template-compiler`；本專案 Vue **3.5.38** |
 | Prisma | `getPackedPackage` RCE | **不適用** | 僅影響 CLI 建置/測試路徑，非 runtime；惟 5.22 已落後（v6 已釋出），建議排程升級 |
 | argon2 / otplib / ioredis / BullMQ | — | **無已知高危 CVE** | 維持現行版本；BullMQ/ioredis 之真實風險向量為後端 Redis 本身（見 §三.1） |
+| esbuild | GHSA-gv7w-rqvm-qjhr（Deno 模組二進位下載缺少完整性驗證，< 0.28.1；Dependabot alert #1，2026-06-12 揭露） | **不適用 / 已修補** | lockfile 解析 **0.28.1**（修補版）；漏洞攻擊路徑限於 Deno 執行環境（`NPM_CONFIG_REGISTRY` 劫持），本專案為 Node.js npm 安裝，向量不成立 |
 
 ---
 
@@ -164,7 +165,7 @@
 - [ ] Nginx：釘選 `nginx:1.27.4-alpine`+（衛生性，TLS 設定無需更動）。
 
 **P2 — 衛生性 / 排程**
-- [ ] 對齊 `admin-frontend` 的 axios 範圍至 `^1.17.0`。
+- [x] 對齊 `admin-frontend` 的 axios 範圍至 `^1.17.0`。（2026-06-16 完成）
 - [ ] 統一 player / admin 的 vue-router 大版本（player 5.1.0 vs admin 4.4.5），降低維護分歧。
 - [ ] 排程評估 Prisma 5 → 6 升級。
 - [ ] **流程改善**：將所有 Docker tag 由浮動（`7-alpine`）改為釘選 patch 版本或 digest；於 CI 導入映像掃描（Trivy/Grype）+ `npm audit` / Dependabot；建立每月「重拉映像 + rebuild + 掃描」例行。
@@ -185,6 +186,7 @@
 - Nginx：[CVE-2025-23419 Snyk](https://security.snyk.io/vuln/SNYK-UNMANAGED-NGINX-8705416) ・ [F5 K000149173](https://my.f5.com/manage/s/article/K000149173)
 - zod：[CVE-2023-4316 Snyk](https://security.snyk.io/vuln/SNYK-JS-ZOD-5925617)
 - Vue：[CVE-2024-6783 SentinelOne](https://www.sentinelone.com/vulnerability-database/cve-2024-6783/)
+- esbuild：[GHSA-gv7w-rqvm-qjhr（esbuild 官方 advisory）](https://github.com/evanw/esbuild/security/advisories/GHSA-gv7w-rqvm-qjhr)
 
 ---
 
