@@ -8,7 +8,7 @@
 # ============================================================
 
 # ---------- 1. deps：安裝 workspace 全部依賴 ----------
-FROM node:20-alpine AS deps
+FROM node:20.19-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY backend/package.json backend/
@@ -31,7 +31,7 @@ RUN npm run build --workspace=backend \
   && npm prune --omit=dev
 
 # ---------- 4. runtime：最小生產映像（非 root 使用者） ----------
-FROM node:20-alpine AS runtime
+FROM node:20.19-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/package.json ./

@@ -19,7 +19,7 @@ name: virtual-casino-sandbox-prod
 services:
   # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.7-alpine
     platform: linux/arm64
     container_name: casino-postgres
     restart: unless-stopped
@@ -43,7 +43,7 @@ services:
 
   # ── Redis 7 ──────────────────────────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.6-alpine
     platform: linux/arm64
     container_name: casino-redis
     restart: unless-stopped
@@ -107,7 +107,7 @@ services:
 
   # ── Nginx 1.27（TLS 終止 + 靜態檔案 + 反向代理）────────────────────────────
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27.4-alpine
     platform: linux/arm64
     container_name: casino-nginx
     restart: unless-stopped
