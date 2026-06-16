@@ -275,6 +275,10 @@ npm run test:coverage
 # 安全演練腳本（需執行中的後端 + PostgreSQL + Redis）
 npm run test:security
 
+# 部署冒煙測試（對已部署堆疊驗收 Nginx→後端→PG/Redis→HMAC→Socket.IO 關鍵路徑）
+# 預設打 https://localhost（自簽憑證略過 TLS 驗證）；正式憑證請設 SMOKE_TLS_VERIFY=1
+npm run test:smoke
+
 # RTP 蒙地卡羅模擬（1000 萬次，驗證 RTP ∈ [90%, 94%]）
 npm run rtp:simulate
 
@@ -303,9 +307,7 @@ npm run -w backend audit:balance
 
 | 項目 | 說明 |
 |------|------|
-| 聊天室自動禁言 | 洗頻偵測（`RATE_LIMIT_BURST`/`RATE_LIMIT_MINUTE`）已實作，但自動禁言功能未完成（M27 演練建議項）|
-| 禁言自動解除 | `setMute` 已記錄 `mutedUntil`，但自動解除的 BullMQ 延遲任務尚未排程 |
-| Pi 4 真機端對端 | M25–M27 各階段均有「需執行中後端 + PG + Redis」的驗收項待實機驗證 |
+| Pi 4 真機端對端 | 已提供 `npm run test:smoke` 對部署堆疊（Nginx → 後端 → PG/Redis → HMAC → Socket.IO）做關鍵路徑冒煙測試；真機端對端仍待 arm64 硬體 + 正式憑證實跑 |
 | Provably Fair | `serverSeedHash` 已落庫（`sha256(rngBytes(32))`），但客戶端驗證介面尚未對外開放 |
 | Roulette HMAC | 輪盤下注目前透過 Socket.IO payload 攜帶 HMAC，HTTP 備援路由不存在 |
 | 聊天 URL 過濾 | 以正則過濾 `https?://` 及裸域名，不包含短網址 / 協定相對網址 |

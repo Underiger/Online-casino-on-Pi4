@@ -2,6 +2,28 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
+## M28 後續修補（2026-06-16）
+
+v1.0.0 發布後的安全與驗收補強，無新里程碑：
+
+- **聊天洗頻自動禁言 + 限時禁言自動解除**（commit `3f0d512`）：原列為已知限制的兩項 backlog
+  已實作並補 +20 測試（共 376 條）。洗頻分鐘桶連續被擋達 5 次 / 60s → 自動限時禁言 5 分鐘
+  （`chat.service.ts` `AUTO_MUTE_THRESHOLD`/`chat.gateway.ts` `CHAT_FLOOD_MUTE_MINUTES`）；到期由 BullMQ
+  moderation queue 的 `timed-unmute` 任務以 Redis 期限標記做 supersession 防護自動解除
+  （`backend/src/jobs/timed-mute.job.ts` + `admin.releaseTimedMute`）。
+- **依賴 CVE 修補**（commits `156602a`/`439aacd`/`a37bd8d`/`b910f10`）：esbuild GHSA-gv7w-rqvm-qjhr、
+  ws CVE-2026-48779、form-data CVE-2026-12143 已透過 root `package.json` `overrides` 修補；詳見
+  `docs/0615_SECURITY_REPORT.md`。
+- **Pi 4 部署冒煙測試**：新增 `scripts/smoke-test.js`（`npm run test:smoke`），對部署堆疊驗收
+  Nginx /health → /api 反向代理 → 註冊（PG）→ 登入（Redis 金鑰）→ HMAC spin → Socket.IO WSS 關鍵路徑；
+  預設打 `https://localhost`（自簽略過 TLS 驗證，正式憑證設 `SMOKE_TLS_VERIFY=1`）。
+
+> **v1.0.0 tag**：原指向 `e0190b1`（M25 docs commit，誤置——早於真正的 v1.0.0 feat commit、M26/M27、
+> CVE 修補與本批補強），已重新指向本 release commit 並強制更新 **origin**。public repo 的 tag 依慣例由
+> 人工以 `gh api` 另行處理（公開版與私有 origin 已分歧 21/33，非鏡像）。
+
+---
+
 ## M28 完成內容（2026-06-14）
 
 ### 文件定稿與 v1.0.0 發布（05_MILESTONES M28）
@@ -52,15 +74,15 @@
 - [x] docs/PROJECT_STATE.md：進度 M28/M28、需求對照表、已知限制清單
 - [x] log.txt：追加完成記錄
 - [x] memory/project_state.md：同步更新至 M28 完成狀態
-- [ ] `git tag -a v1.0.0 -m "Release v1.0.0: 完整多人線上虛擬娛樂平台"` + `git push origin v1.0.0`（請手動執行）
-- [ ] Pi 4 真機最終冒煙測試（需 arm64 硬體 + 正式 Let's Encrypt 憑證）
+- [x] `git tag -a v1.0.0`（自誤置的 `e0190b1` 重新指向 release commit）+ `git push --force origin v1.0.0`（origin 已更新；public 由人工以 `gh api` 處理）
+- [ ] Pi 4 真機最終冒煙測試（需 arm64 硬體 + 正式 Let's Encrypt 憑證）— 冒煙腳本已備（`npm run test:smoke` / `scripts/smoke-test.js`），到貨後直接跑
 
 ---
 
 - 進度：M28 / M28（全部完成）
 - 資料庫 migration 版本：20260612_init（17 張表 + 9 enum + BRIN ×2 + 物化視圖 ×3 + jackpot 種子行）
 - API 狀態：infra ✅ / db-schema ✅ / app-skeleton ✅ / auth ✅ / api-spec ✅ / security ✅ / wallet ✅ / socket-base ✅ / frontend-skeleton ✅ / slot-core ✅ / slot-api ✅ / slot-frontend ✅ / roulette ✅ / jackpot ✅ / charm ✅ / daily ✅ / leaderboard ✅ / chat ✅ / achievement ✅ / admin ✅ / gift-code-redeem ✅ / records-query ✅ / admin-frontend ✅ / monitor ✅ / deploy-pipeline ✅ / rtp-simulation ✅ / loadtest ✅ / e2e-integration ✅ / security-drill ✅ / documentation ✅（M28）
-- 已知 Bug（minor，非 v1.0 阻塞項）：聊天洗頻自動禁言未實作（M27 演練建議）；timed-mute 自動解除 BullMQ 延遲任務未排程；Pi 4 真機端對端待補驗
+- 已知 Bug（minor，非 v1.0 阻塞項）：Pi 4 真機端對端待補驗（需 arm64 硬體 + 正式憑證；可用 `npm run test:smoke` 對部署堆疊做關鍵路徑冒煙）。聊天洗頻自動禁言 / 限時禁言自動解除已於 `3f0d512` 補實作（見上方「M28 後續修補」）
 - TODO：無
 - 最近 Commit 建議：`chore(release): v1.0.0`
 
