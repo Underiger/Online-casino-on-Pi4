@@ -10,6 +10,9 @@
 # ---------- 1. deps：安裝 workspace 全部依賴 ----------
 FROM node:20.19-alpine AS deps
 WORKDIR /app
+# Alpine 預設只有 libssl3 函式庫、無 openssl CLI；Prisma 的 libssl 版本偵測腳本
+# 依賴 `openssl version` 指令，缺少時會誤判退回 openssl-1.1.x 引擎並載入失敗。
+RUN apk add --no-cache openssl
 COPY package.json package-lock.json* ./
 COPY backend/package.json backend/
 COPY backend/prisma backend/prisma
@@ -35,6 +38,7 @@ RUN npm run build --workspace=backend \
 FROM node:20.19-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared

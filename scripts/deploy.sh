@@ -94,7 +94,7 @@ docker compose \
   -f "$COMPOSE_FILE" \
   build \
   --build-arg BUILDKIT_INLINE_CACHE=1 \
-  app
+  app migrate
 
 # ── 6. 資料庫 Migration ───────────────────────────────────────────────────────
 info "[6/7] 執行 Prisma migration..."
@@ -102,12 +102,16 @@ info "[6/7] 執行 Prisma migration..."
 # 先確保 postgres 啟動
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d postgres redis
 info "  等待 PostgreSQL 健康檢查..."
+PG_USER="$(grep -E '^POSTGRES_USER=' "$ENV_FILE" | cut -d= -f2- || true)"
+PG_DB="$(grep -E '^POSTGRES_DB=' "$ENV_FILE" | cut -d= -f2- || true)"
+PG_USER="${PG_USER:-casino}"
+PG_DB="${PG_DB:-casino_prod}"
 timeout 60 bash -c "
-  until docker compose --env-file '$ENV_FILE' -f '$COMPOSE_FILE' exec postgres \
-    pg_isready -q 2>/dev/null; do
+  until docker compose --env-file '$ENV_FILE' -f '$COMPOSE_FILE' exec -T postgres \
+    pg_isready -q -U '$PG_USER' -d '$PG_DB' 2>/dev/null; do
     sleep 2
   done
-"
+" || error "PostgreSQL 60 秒內未就緒，請執行 docker compose -f \"$COMPOSE_FILE\" logs postgres 檢查"
 
 # 使用 migrate 服務（deps build stage，含 prisma CLI）
 docker compose \

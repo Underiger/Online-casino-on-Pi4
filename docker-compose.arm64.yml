@@ -93,13 +93,13 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # node:20-alpine 內建 node，用最小開銷驗 GET /
+      # node:20-alpine 內建 node，用最小開銷驗 GET /healthz（見 backend/src/app.ts）
       test:
         - CMD
         - node
         - -e
         - |
-          require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))
+          require('http').get('http://localhost:3000/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))
       interval: 15s
       timeout: 8s
       retries: 3
@@ -153,6 +153,7 @@ services:
       - sh
       - -c
       - |
+        set -e
         echo "執行 prisma migrate deploy..."
         node_modules/.bin/prisma migrate deploy --schema=backend/prisma/schema.prisma
         echo "Migration 完成。"
