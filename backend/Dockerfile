@@ -12,6 +12,7 @@ FROM node:20.19-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY backend/package.json backend/
+COPY backend/prisma backend/prisma
 COPY packages/shared/package.json packages/shared/
 RUN npm install
 
