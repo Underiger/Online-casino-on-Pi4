@@ -27,12 +27,14 @@ import type { JwtPayload } from '../../plugins/auth.js';
 import type { HmacKeyStore } from '../../security/hmac.js';
 import { createUserService } from '../user/user.service.js';
 import type {
+  AuthUserInfo,
   ClientMeta,
   LoginInput,
   RegisterInput,
   RegisterResult,
   TokenPair,
 } from './auth.types.js';
+import type { User } from '@prisma/client';
 
 // ═════════════════ 純函式（單元測試直接覆蓋） ═════════════════
 
@@ -159,12 +161,23 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
     return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn: accessTtlSeconds };
   }
 
+  /** Prisma User → 前端 AuthUserInfo（balance: BigInt 須轉 string） */
+  function toAuthUserInfo(user: User): AuthUserInfo {
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role as JwtPayload['role'],
+      balance: user.balance.toString(),
+      avatarId: user.avatarId,
+    };
+  }
+
   return {
-    async register({ username, password }: RegisterInput): Promise<RegisterResult> {
+    async register({ username, password }: RegisterInput, meta: ClientMeta): Promise<RegisterResult> {
       const passwordHash = await hashPassword(password);
+      let user: User;
       try {
-        const user = await users.createPlayer({ username, passwordHash });
-        return { userId: user.id, username: user.username };
+        user = await users.createPlayer({ username, passwordHash });
       } catch (err) {
         // DB unique 約束為準（先查再建有 TOCTOU 競態）
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -172,9 +185,14 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
         }
         throw err;
       }
+      await writeLoginLog(user.id, username, meta, 'SUCCESS');
+      // 註冊即登入：開新旋轉鏈家族 + 協商 HMAC 會話金鑰，與 login 行為一致
+      const pair = await issueTokenPair(user.id, user.role as JwtPayload['role'], randomUUID());
+      const hmacKey = await negotiateHmacKey(user.id);
+      return { ...pair, hmacKey, user: toAuthUserInfo(user) };
     },
 
-    async login({ username, password }: LoginInput, meta: ClientMeta): Promise<TokenPair> {
+    async login({ username, password }: LoginInput, meta: ClientMeta): Promise<RegisterResult> {
       const user = await users.findByUsername(username);
       if (!user) {
         await writeLoginLog(null, username, meta, 'WRONG_PASSWORD');
@@ -194,7 +212,7 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
       // 每次登入開新旋轉鏈家族 + 協商 HMAC 會話金鑰（02_TDD §5.2 步驟 1–3）
       const pair = await issueTokenPair(user.id, user.role as JwtPayload['role'], randomUUID());
       const hmacKey = await negotiateHmacKey(user.id);
-      return { ...pair, hmacKey };
+      return { ...pair, hmacKey, user: toAuthUserInfo(user) };
     },
 
     async refresh(rawToken: string): Promise<TokenPair> {

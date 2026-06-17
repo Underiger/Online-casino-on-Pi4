@@ -32,7 +32,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/register', async (request, reply) => {
     const body = parse(RegisterSchema, request.body);
-    const result = await service.register(body);
+    const result = await service.register(body, metaOf(request.ip, request.headers['user-agent']));
     return reply.code(201).send(result);
   });
 
