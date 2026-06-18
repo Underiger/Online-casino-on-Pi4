@@ -83,9 +83,17 @@ export interface AuthServiceDeps {
   signAccessToken: (payload: JwtPayload) => string;
   /** HMAC 會話金鑰管理（routes 層注入 app.hmacKeys）；測試注入假實作 */
   hmacKeys: Pick<HmacKeyStore, 'rotate' | 'revoke'>;
+  /**
+   * seq 防重放門檻重設（routes 層注入 ReplayGuard.resetSeq）；測試注入假實作。
+   * 只在 register/login 呼叫——這是 client 端 seq 計數器真正歸零的時刻
+   * （見 frontend stores/auth.ts clearPersisted）。refresh 不可呼叫：refresh
+   * 是背景靜默換 token，client 端 seq 未歸零，重設會把防重放保護窗從 7 天
+   * 縮短成 access token TTL（安全性退步）。
+   */
+  resetSeq: (userId: string) => Promise<void>;
 }
 
-export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthServiceDeps) {
+export function createAuthService({ prisma, signAccessToken, hmacKeys, resetSeq }: AuthServiceDeps) {
   const users = createUserService(prisma);
   const accessTtlSeconds = ttlToSeconds(env.JWT_ACCESS_TTL);
 
@@ -112,6 +120,16 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
     } catch (err) {
       if (env.NODE_ENV === 'production') throw err;
       console.warn(`auth: redis 不可用，略過 HMAC 金鑰撤銷（${(err as Error).message}）`);
+    }
+  }
+
+  /** 新會話起點重設 seq 門檻，與 client 端歸零同步（見 AuthServiceDeps.resetSeq） */
+  async function resetSequence(userId: string): Promise<void> {
+    try {
+      await resetSeq(userId);
+    } catch (err) {
+      if (env.NODE_ENV === 'production') throw err;
+      console.warn(`auth: redis 不可用，略過 seq 門檻重設（${(err as Error).message}）`);
     }
   }
 
@@ -189,6 +207,7 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
       // 註冊即登入：開新旋轉鏈家族 + 協商 HMAC 會話金鑰，與 login 行為一致
       const pair = await issueTokenPair(user.id, user.role as JwtPayload['role'], randomUUID());
       const hmacKey = await negotiateHmacKey(user.id);
+      await resetSequence(user.id);
       return { ...pair, hmacKey, user: toAuthUserInfo(user) };
     },
 
@@ -212,6 +231,7 @@ export function createAuthService({ prisma, signAccessToken, hmacKeys }: AuthSer
       // 每次登入開新旋轉鏈家族 + 協商 HMAC 會話金鑰（02_TDD §5.2 步驟 1–3）
       const pair = await issueTokenPair(user.id, user.role as JwtPayload['role'], randomUUID());
       const hmacKey = await negotiateHmacKey(user.id);
+      await resetSequence(user.id);
       return { ...pair, hmacKey, user: toAuthUserInfo(user) };
     },
 

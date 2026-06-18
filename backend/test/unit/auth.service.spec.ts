@@ -187,14 +187,27 @@ function createFakeHmacKeys() {
   };
 }
 
+/** M06 修復：記錄 seq 門檻重設呼叫的假實作 */
+function createFakeReplay() {
+  const resetCalls: string[] = [];
+  return {
+    resetCalls,
+    async resetSeq(userId: string): Promise<void> {
+      resetCalls.push(userId);
+    },
+  };
+}
+
 function makeService(
   db: ReturnType<typeof createFakeDb>,
   hmacKeys = createFakeHmacKeys(),
+  replay = createFakeReplay(),
 ) {
   return createAuthService({
     prisma: db.prisma,
     signAccessToken: (payload) => `jwt.${payload.sub}.${payload.role}`,
     hmacKeys,
+    resetSeq: replay.resetSeq,
   });
 }
 
@@ -359,5 +372,40 @@ describe('HMAC 金鑰協商與輪換', () => {
 
     await service.logout(generateRefreshToken());
     expect(hmacKeys.revoked).toHaveLength(1); // 不重複撤銷
+  });
+});
+
+// ═════════════════ Seq 門檻重設（修復跨 session 殘留 ERR_SEQ_REGRESSION） ═════════════════
+
+describe('Seq 門檻重設', () => {
+  let db: ReturnType<typeof createFakeDb>;
+  let replay: ReturnType<typeof createFakeReplay>;
+  let service: ReturnType<typeof makeService>;
+
+  beforeEach(async () => {
+    db = createFakeDb();
+    replay = createFakeReplay();
+    service = makeService(db, createFakeHmacKeys(), replay);
+    await service.register({ username: 'alice', password: 'password123' }, META);
+  });
+
+  it('register 會重設 seq 門檻（client 端 seq 從 0 起算）', () => {
+    const userId = db.usersTable[0]!.id;
+    expect(replay.resetCalls).toEqual([userId]);
+  });
+
+  it('login 會重設 seq 門檻', async () => {
+    const userId = db.usersTable[0]!.id;
+    await service.login({ username: 'alice', password: 'password123' }, META);
+    // register（beforeEach）+ login，皆是 client 端 seq 真正歸零的時刻
+    expect(replay.resetCalls).toEqual([userId, userId]);
+  });
+
+  it('refresh 不會重設 seq 門檻——client 端 seq 未歸零，重設會縮短防重放保護窗', async () => {
+    const userId = db.usersTable[0]!.id;
+    const pair = await service.login({ username: 'alice', password: 'password123' }, META);
+    await service.refresh(pair.refreshToken);
+    // 仍只有 register + login 兩次，refresh 沒有新增呼叫
+    expect(replay.resetCalls).toEqual([userId, userId]);
   });
 });
