@@ -38,7 +38,7 @@ SSD_UUID=$(blkid -s UUID -o value "$SSD_PART")
 echo "=== 3. 寫入 /etc/fstab (備份至 /etc/fstab.bak-$TS) ==="
 cp /etc/fstab "/etc/fstab.bak-$TS"
 if ! grep -q "$SSD_UUID" /etc/fstab; then
-  echo "UUID=$SSD_UUID $MOUNT_POINT ext4 defaults,noatime 0 2" >> /etc/fstab
+  echo "UUID=$SSD_UUID $MOUNT_POINT ext4 defaults,noatime,nofail,x-systemd.device-timeout=10s 0 2" >> /etc/fstab
 fi
 
 chown scout:scout "$MOUNT_POINT"
