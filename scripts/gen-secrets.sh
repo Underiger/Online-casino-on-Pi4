@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # ============================================================
 # gen-secrets.sh — 產生 JWT_SECRET / AES_256_GCM_KEY / Admin 初始密碼
-# 並寫入專案根目錄的 .env（已存在的非 change_me 值不會被覆蓋）。
+# 並寫入指定的 env 檔（預設 .env；已存在的非 change_me 值不會被覆蓋）。
 #
 # 用法（repo 根目錄執行）：
-#   cp .env.example .env   # 若尚未建立
+#   cp .env.example .env             # 開發環境，若尚未建立
 #   bash scripts/gen-secrets.sh
+#
+#   cp .env.example .env.production  # 生產環境
+#   bash scripts/gen-secrets.sh .env.production
 #
 # 依賴：openssl（macOS / Linux / Git Bash / WSL 皆內建）
 # ============================================================
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="$ROOT_DIR/${1:-.env}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "找不到 $ENV_FILE，先從範本複製..."

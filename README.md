@@ -154,7 +154,7 @@ nano .env.production
 #   DATABASE_URL=postgresql://casino:PASSWORD@postgres:5432/casino_prod?schema=public
 #   REDIS_URL=redis://redis:6379
 # 然後執行：
-bash scripts/gen-secrets.sh    # 自動填入 JWT_SECRET / AES_256_GCM_KEY / ADMIN_INITIAL_PASSWORD
+bash scripts/gen-secrets.sh .env.production    # 自動填入 JWT_SECRET / AES_256_GCM_KEY / ADMIN_INITIAL_PASSWORD
 ```
 
 #### 2. 產生 TLS 憑證

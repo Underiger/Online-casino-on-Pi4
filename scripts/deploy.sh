@@ -17,7 +17,7 @@
 # 環境前置：
 #   cp .env.example .env.production
 #   nano .env.production          # 至少設定 NODE_ENV=production + 所有機密值
-#   bash scripts/gen-secrets.sh   # 若 .env.production 中有 change_me 值
+#   bash scripts/gen-secrets.sh .env.production   # 若 .env.production 中有 change_me 值
 #   bash scripts/gen-cert.sh      # 首次部署：產生 TLS 憑證
 # ============================================================
 set -euo pipefail
@@ -44,9 +44,9 @@ info "[1/7] 環境檢查..."
 
 [[ -f "$ENV_FILE" ]] || error ".env.production 不存在！請先執行：cp .env.example .env.production"
 
-# 檢查關鍵機密是否仍為 change_me
-if grep -q "change_me" "$ENV_FILE"; then
-  error ".env.production 中仍有 change_me 佔位值，請先執行：bash scripts/gen-secrets.sh"
+# 檢查關鍵機密是否仍為 change_me（忽略註解行，避免範本說明文字誤判）
+if grep -vE '^\s*#' "$ENV_FILE" | grep -q "change_me"; then
+  error ".env.production 中仍有 change_me 佔位值，請先執行：bash scripts/gen-secrets.sh .env.production"
 fi
 
 # 檢查 TLS 憑證
