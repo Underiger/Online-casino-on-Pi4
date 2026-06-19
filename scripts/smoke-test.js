@@ -120,8 +120,8 @@ async function register() {
   if (status !== 201) {
     throw new Error(`register 預期 201，實得 ${status}${json ? ` ${JSON.stringify(json).slice(0, 80)}` : ''}`);
   }
-  if (!json || !json.userId) throw new Error('register 回應缺 userId');
-  return { value: { username, password, userId: json.userId }, detail: `userId ${json.userId.slice(0, 8)}…` };
+  if (!json || !json.user || !json.user.id) throw new Error('register 回應缺 user.id');
+  return { value: { username, password, userId: json.user.id }, detail: `userId ${json.user.id.slice(0, 8)}…` };
 }
 
 /** 4. 登入（驗 JWT 簽發 + Redis 下發 HMAC 會話金鑰）。 */
