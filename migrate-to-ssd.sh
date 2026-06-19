@@ -10,7 +10,9 @@ PROJECT_OLD=/home/scout/Online-casino-on-Pi4
 PROJECT_NEW=$MOUNT_POINT/Online-casino-on-Pi4
 DOCKER_DATA_NEW=$MOUNT_POINT/docker-data
 TS=$(date +%Y%m%d-%H%M%S)
-COMPOSE_FILES="-f docker-compose.yml -f docker-compose.arm64.yml"
+COMPOSE_FILES="-f docker-compose.arm64.yml"
+ENV_FILE_OLD="$PROJECT_OLD/.env.production"
+ENV_FILE_NEW="$PROJECT_NEW/.env.production"
 
 if [[ $EUID -ne 0 ]]; then
   echo "請用 sudo 執行: sudo bash $0" >&2
@@ -47,7 +49,7 @@ chown scout:scout "$DOCKER_DATA_NEW"
 
 echo "=== 4. 停止 casino docker compose stack ==="
 cd "$PROJECT_OLD"
-sudo -u scout docker compose $COMPOSE_FILES down
+sudo -u scout docker compose --env-file "$ENV_FILE_OLD" $COMPOSE_FILES down
 
 echo "=== 5. 停止 docker daemon 並搬移 /var/lib/docker ==="
 systemctl stop docker.socket docker.service
@@ -81,10 +83,10 @@ ln -s "$PROJECT_NEW" "$PROJECT_OLD"
 
 echo "=== 10. 重新啟動 casino stack (從 SSD) ==="
 cd "$PROJECT_NEW"
-sudo -u scout docker compose $COMPOSE_FILES up -d
+sudo -u scout docker compose --env-file "$ENV_FILE_NEW" $COMPOSE_FILES up -d
 
 echo "=== 完成。驗證: ==="
-docker compose $COMPOSE_FILES ps
+docker compose --env-file "$ENV_FILE_NEW" $COMPOSE_FILES ps
 echo "舊 docker 資料備份在: /var/lib/docker.bak-$TS"
 echo "舊專案資料夾備份在: ${PROJECT_OLD}.bak-$TS"
 echo "確認運作正常幾天後，可手動刪除上述兩個 .bak 備份以釋放 SD 卡空間。"
