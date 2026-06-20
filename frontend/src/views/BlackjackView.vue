@@ -9,24 +9,11 @@ import type { Card } from '@casino/shared';
 
 import { useBlackjackStore } from '../stores/blackjack';
 import CoinDisplay from '../components/common/CoinDisplay.vue';
+import PlayingCard from '../components/common/PlayingCard.vue';
 
 const store = useBlackjackStore();
 const betInput = ref<number>(BLACKJACK_MIN_BET);
 
-const SUIT_SYMBOL: Record<Card['suit'], string> = {
-  SPADE: '♠',
-  HEART: '♥',
-  DIAMOND: '♦',
-  CLUB: '♣',
-};
-const RANK_LABEL: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
-
-function cardLabel(card: Card): string {
-  return `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_SYMBOL[card.suit]}`;
-}
-function isRed(card: Card): boolean {
-  return card.suit === 'HEART' || card.suit === 'DIAMOND';
-}
 /** A 算 11、J/Q/K 算 10，逐張降軟硬（只供前端顯示用，正式判定一律以伺服器回應為準） */
 function handValue(cards: Card[]): number {
   let total = 0;
@@ -83,24 +70,20 @@ async function handleDeal(): Promise<void> {
           莊家：{{ store.round.settled ? handValue(store.round.dealerCards) : '?' }}
         </div>
         <div class="cards">
-          <div
+          <PlayingCard
             v-for="(card, i) in store.round.settled ? store.round.dealerCards : [store.round.dealerUpCard]"
             :key="i"
-            class="card"
-            :class="{ red: isRed(card) }"
-          >
-            {{ cardLabel(card) }}
-          </div>
-          <div v-if="!store.round.settled" class="card back" />
+            :card="card"
+            size="sm"
+          />
+          <PlayingCard v-if="!store.round.settled" size="sm" />
         </div>
       </section>
 
       <section class="hand player-hand">
         <div class="hand-label">你的手牌：{{ handValue(store.round.playerCards) }}　注金 {{ store.round.betAmount }}</div>
         <div class="cards">
-          <div v-for="(card, i) in store.round.playerCards" :key="i" class="card" :class="{ red: isRed(card) }">
-            {{ cardLabel(card) }}
-          </div>
+          <PlayingCard v-for="(card, i) in store.round.playerCards" :key="i" :card="card" size="sm" />
         </div>
       </section>
     </template>
@@ -158,24 +141,6 @@ async function handleDeal(): Promise<void> {
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-.card {
-  width: 70px;
-  height: 100px;
-  border: 2px solid #333;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: bold;
-  background: #fff;
-}
-.card.red {
-  color: #d33;
-}
-.card.back {
-  background: repeating-linear-gradient(45deg, #2a4, #2a4 10px, #194 10px, #194 20px);
 }
 .controls {
   display: flex;

@@ -5,28 +5,13 @@
  */
 import { computed, ref } from 'vue';
 import { HIGH_LOW_MAX_BET, HIGH_LOW_MAX_STREAK, HIGH_LOW_MIN_BET } from '@casino/shared';
-import type { Card } from '@casino/shared';
 
 import { useHighLowStore } from '../stores/high-low';
 import CoinDisplay from '../components/common/CoinDisplay.vue';
+import PlayingCard from '../components/common/PlayingCard.vue';
 
 const store = useHighLowStore();
 const betInput = ref<number>(HIGH_LOW_MIN_BET);
-
-const SUIT_SYMBOL: Record<Card['suit'], string> = {
-  SPADE: '♠',
-  HEART: '♥',
-  DIAMOND: '♦',
-  CLUB: '♣',
-};
-const RANK_LABEL: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
-
-function cardLabel(card: Card): string {
-  return `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_SYMBOL[card.suit]}`;
-}
-function isRed(card: Card): boolean {
-  return card.suit === 'HEART' || card.suit === 'DIAMOND';
-}
 
 const canDeal = computed(
   () => !store.isDealing && store.round === null && betInput.value >= HIGH_LOW_MIN_BET && betInput.value <= HIGH_LOW_MAX_BET,
@@ -67,13 +52,8 @@ async function handleDeal(): Promise<void> {
     </section>
 
     <section class="card-area">
-      <div v-if="store.round !== null" class="card" :class="{ red: isRed(store.round.baseCard) }">
-        {{ cardLabel(store.round.baseCard) }}
-      </div>
-      <div v-else class="card back" />
-      <div v-if="store.lastOutcome?.revealedCard" class="card" :class="{ red: isRed(store.lastOutcome.revealedCard) }">
-        {{ cardLabel(store.lastOutcome.revealedCard) }}
-      </div>
+      <PlayingCard :card="store.round?.baseCard" size="md" />
+      <PlayingCard v-if="store.lastOutcome?.revealedCard" :card="store.lastOutcome.revealedCard" size="md" />
     </section>
 
     <section v-if="store.round === null" class="controls">
@@ -132,24 +112,6 @@ async function handleDeal(): Promise<void> {
   gap: 24px;
   margin: 24px 0;
   min-height: 130px;
-}
-.card {
-  width: 90px;
-  height: 130px;
-  border: 2px solid #333;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: bold;
-  background: #fff;
-}
-.card.red {
-  color: #d33;
-}
-.card.back {
-  background: repeating-linear-gradient(45deg, #2a4, #2a4 10px, #194 10px, #194 20px);
 }
 .controls {
   display: flex;

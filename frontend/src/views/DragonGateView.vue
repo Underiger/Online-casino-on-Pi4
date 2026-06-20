@@ -5,29 +5,14 @@
  */
 import { computed, ref } from 'vue';
 import { DRAGON_GATE_MAX_BET, DRAGON_GATE_MIN_BET } from '@casino/shared';
-import type { Card } from '@casino/shared';
 
 import { useDragonGateStore } from '../stores/dragon-gate';
 import CoinDisplay from '../components/common/CoinDisplay.vue';
+import PlayingCard from '../components/common/PlayingCard.vue';
 
 const store = useDragonGateStore();
 
 const betInput = ref<number>(DRAGON_GATE_MIN_BET);
-
-const SUIT_SYMBOL: Record<Card['suit'], string> = {
-  SPADE: '♠',
-  HEART: '♥',
-  DIAMOND: '♦',
-  CLUB: '♣',
-};
-const RANK_LABEL: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
-
-function cardLabel(card: Card): string {
-  return `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_SYMBOL[card.suit]}`;
-}
-function isRed(card: Card): boolean {
-  return card.suit === 'HEART' || card.suit === 'DIAMOND';
-}
 
 const canOpen = computed(() => !store.isOpening && !store.isBetting && store.currentRound === null);
 const canBet = computed(
@@ -68,21 +53,17 @@ async function handleBet(): Promise<void> {
     <p v-if="store.error" class="error">{{ store.error }}</p>
 
     <section class="doors" v-if="store.currentRound !== null">
-      <div class="door-card" :class="{ red: isRed(store.currentRound.doors[0]) }">
-        {{ cardLabel(store.currentRound.doors[0]) }}
-      </div>
+      <PlayingCard :card="store.currentRound.doors[0]" size="md" />
       <div class="gap-info">
         <div>門寬 {{ store.currentRound.gap }}</div>
         <div class="multiplier">賠率 ×{{ store.currentRound.multiplier }}</div>
       </div>
-      <div class="door-card" :class="{ red: isRed(store.currentRound.doors[1]) }">
-        {{ cardLabel(store.currentRound.doors[1]) }}
-      </div>
+      <PlayingCard :card="store.currentRound.doors[1]" size="md" />
     </section>
     <section v-else class="doors placeholder">
-      <div class="door-card back" />
+      <PlayingCard size="md" />
       <div class="gap-info">按「開門」開始</div>
-      <div class="door-card back" />
+      <PlayingCard size="md" />
     </section>
 
     <section class="controls">
@@ -105,9 +86,7 @@ async function handleBet(): Promise<void> {
     </section>
 
     <section v-if="store.lastResult" class="result" :class="outcomeClass[store.lastResult.outcome]">
-      <div class="third-card" :class="{ red: isRed(store.lastResult.thirdCard) }">
-        {{ cardLabel(store.lastResult.thirdCard) }}
-      </div>
+      <PlayingCard class="third-card" :card="store.lastResult.thirdCard" size="sm" />
       <div class="outcome-text">{{ outcomeLabel[store.lastResult.outcome] }}</div>
       <div v-if="store.lastResult.outcome === 'WIN'">獲得 {{ store.lastResult.payout }} 金幣</div>
       <div v-else-if="store.lastResult.outcome === 'DOOR_HIT'">
@@ -140,24 +119,6 @@ async function handleBet(): Promise<void> {
   gap: 24px;
   margin: 32px 0;
 }
-.door-card {
-  width: 90px;
-  height: 130px;
-  border: 2px solid #333;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: bold;
-  background: #fff;
-}
-.door-card.red {
-  color: #d33;
-}
-.door-card.back {
-  background: repeating-linear-gradient(45deg, #2a4, #2a4 10px, #194 10px, #194 20px);
-}
 .gap-info {
   text-align: center;
   min-width: 100px;
@@ -183,20 +144,7 @@ async function handleBet(): Promise<void> {
   margin-top: 16px;
 }
 .result .third-card {
-  width: 70px;
-  height: 100px;
   margin: 0 auto 8px;
-  border: 2px solid #333;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: bold;
-  background: #fff;
-}
-.result .third-card.red {
-  color: #d33;
 }
 .outcome-text {
   font-size: 20px;
