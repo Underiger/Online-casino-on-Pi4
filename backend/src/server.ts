@@ -20,6 +20,7 @@ import { registerDailyJobs } from './modules/daily/daily.jobs.js';
 import { registerLeaderboardJobs } from './jobs/leaderboard-refresh.job.js';
 import { registerMonitorScanJob } from './jobs/monitor-scan.job.js';
 import { registerModerationJobs } from './jobs/timed-mute.job.js';
+import { registerAbandonedRoundJob } from './jobs/abandoned-round.job.js';
 import { env } from './config/env.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -46,6 +47,9 @@ export async function startServer(): Promise<void> {
 
   // 限時禁言自動解除（BullMQ 延遲任務）+ 聊天洗頻自動禁言的排程出口（app.scheduleTimedUnmute）
   await registerModerationJobs(app);
+
+  // High-Low / Blackjack 孤兒回合清理（每 2 分鐘掃描，5 分鐘無動作即強制結算）
+  await registerAbandonedRoundJob(app);
 
   let closing = false;
   const shutdown = (signal: NodeJS.Signals): void => {

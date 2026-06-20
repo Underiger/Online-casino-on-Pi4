@@ -222,3 +222,46 @@ describe('cashOut', () => {
     await expect(ctx.service.cashOut(ALICE, 'HL-test-round')).rejects.toThrow(ConflictError);
   });
 });
+
+describe('resolveAbandoned（孤兒回合清理，BullMQ job 呼叫）', () => {
+  it('卡在 GUESSING：沒收目前彩池（forfeit），絕不是退款原始注額', async () => {
+    const ctx = setup();
+    await seedRound(ctx, { pot: 400, streak: 2 }); // 已連勝兩次，pot 比原始注額(100)高很多
+    const result = await ctx.service.resolveAbandoned(ALICE);
+
+    expect(result.resolved).toBe(true);
+    expect(result.outcome).toBe('FORFEITED');
+    expect(ctx.db.users[0]?.balance).toBe(1_000n); // 完全沒有入帳（seedRound 本就沒扣過款）
+    expect(await ctx.redis.redis.get(roundKey(ALICE))).toBeNull();
+    // 沒有任何一筆 BalanceTransaction 是 REFUND 類型——根本沒有產生任何交易紀錄
+    expect(ctx.db.txRecords.some((t) => t.type === 'REFUND')).toBe(false);
+    expect(ctx.db.betRecords[0]?.detail).toMatchObject({ status: 'FORFEITED' });
+  });
+
+  it('卡在 RESULT：強制視為收手，入帳目前彩池（等同玩家自己按收手）', async () => {
+    const ctx = setup();
+    await seedRound(ctx, { state: 'RESULT', pot: 400, streak: 2, pendingNextCard: card(9) });
+    const result = await ctx.service.resolveAbandoned(ALICE);
+
+    expect(result.resolved).toBe(true);
+    expect(result.outcome).toBe('AUTO_CASH_OUT');
+    expect(ctx.db.users[0]?.balance).toBe(1_400n); // 1000 + 400（彩池入帳）
+    expect(await ctx.redis.redis.get(roundKey(ALICE))).toBeNull();
+    expect(ctx.db.txRecords.every((t) => t.type !== 'REFUND')).toBe(true);
+    expect(ctx.db.txRecords.some((t) => t.type === 'PAYOUT')).toBe(true); // 是入帳，不是退款
+  });
+
+  it('回合早已被玩家自己結算（Redis 已無狀態）：resolved=false，不做任何事', async () => {
+    const ctx = setup();
+    const result = await ctx.service.resolveAbandoned(ALICE);
+    expect(result.resolved).toBe(false);
+    expect(ctx.db.users[0]?.balance).toBe(1_000n);
+  });
+
+  it('與玩家即時請求共用同一把鎖：鎖被佔用時清理也會等價地拋出 OptimisticLockError', async () => {
+    const ctx = setup();
+    await seedRound(ctx);
+    await ctx.redis.redis.set(`${roundKey(ALICE)}:lock`, 'someone-elses-token');
+    await expect(ctx.service.resolveAbandoned(ALICE)).rejects.toThrow(OptimisticLockError);
+  });
+});

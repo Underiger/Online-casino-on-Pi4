@@ -338,5 +338,59 @@ export function createHighLowService(deps: HighLowServiceDeps) {
         return { payout: state.pot, newBalance };
       });
     },
+
+    /**
+     * 孤兒回合清理（BullMQ job 呼叫，見 jobs/abandoned-round.job.ts）：
+     * 卡在 GUESSING → 沒收彩池；卡在 RESULT → 強制收手。絕不是退款（見檔頭說明）。
+     * 跟玩家自己呼叫的動作共用同一把 round-lock，不會跟即時請求互踩；如果回合
+     * 在搶到鎖之前就已經被玩家自己結算掉了（state===null），視為無事可做。
+     */
+    async resolveAbandoned(userId: string): Promise<{ resolved: boolean; outcome?: string }> {
+      return lock.withLock(lockKey(userId), LOCK_TTL_MS, async () => {
+        const state = await getState(userId);
+        if (state === null) return { resolved: false };
+
+        const betRecord = await findOpenBetRecord(prisma, userId, state.roundId, log);
+        if (state.state === 'GUESSING') {
+          await finalizeRound(userId, betRecord.id, 0, {
+            status: 'FORFEITED',
+            outcome: 'ABANDONED_FORFEITED',
+            finalStreak: state.streak,
+          });
+          await clearState(userId);
+          return { resolved: true, outcome: 'FORFEITED' };
+        }
+
+        await finalizeRound(userId, betRecord.id, state.pot, {
+          status: 'AUTO_SETTLED',
+          outcome: 'ABANDONED_AUTO_CASH_OUT',
+          finalStreak: state.streak,
+        });
+        await clearState(userId);
+        return { resolved: true, outcome: 'AUTO_CASH_OUT' };
+      });
+    },
   };
 }
+
+/** OPEN 狀態的 BetRecord 是 deal() 建立的那一筆，用 roundId 找回（避免每個動作都要傳 betRecordId） */
+async function findOpenBetRecord(
+  prisma: PrismaClient,
+  userId: string,
+  roundId: string,
+  log: HighLowLog,
+): Promise<{ id: string }> {
+  const record = await prisma.betRecord.findFirst({
+    where: { userId, roundId, gameType: 'HIGH_LOW' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  if (record === null) {
+    // Redis 說回合還在進行，DB 卻找不到對應紀錄——理論上不該發生，記警告供事後稽核
+    log.warn({ userId, roundId }, 'high-low: Redis 回合存在但 BetRecord 找不到，資料不一致');
+    throw new NotFoundError('找不到對應的下注紀錄');
+  }
+  return record;
+}
+
+export type HighLowService = ReturnType<typeof createHighLowService>;

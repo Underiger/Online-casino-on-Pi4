@@ -242,3 +242,46 @@ describe('double', () => {
     expect(result.payout).toBe(0);
   });
 });
+
+describe('resolveAbandoned（孤兒回合清理，BullMQ job 呼叫）', () => {
+  it('卡在 PLAYER_TURN：強制視為停牌（Auto Stand），照正常莊家補牌流程結算，絕不是退款', async () => {
+    const ctx = setup();
+    await seedRound(ctx, {
+      playerCards: [card(10), card(9)], // 19
+      dealerCards: [card(10), card(2)], // 12，停牌後必須補
+      deck: [card(4), card(2)], // 12+4=16(<17,補)+2=18(>=17,停) → 莊家 18
+    });
+    const result = await ctx.service.resolveAbandoned(ALICE);
+
+    expect(result.resolved).toBe(true);
+    expect(result.outcome).toBe('WIN'); // 玩家 19 > 莊家 18
+    expect(await ctx.redis.redis.get(roundKey(ALICE))).toBeNull();
+    expect(ctx.db.txRecords.every((t) => t.type !== 'REFUND')).toBe(true);
+    expect(ctx.db.txRecords.some((t) => t.type === 'PAYOUT')).toBe(true); // 是入帳，不是退款
+    expect(ctx.db.betRecords[0]?.detail).toMatchObject({ status: 'SETTLED', outcome: 'WIN' });
+  });
+
+  it('卡在 PLAYER_TURN 且停牌後輸了：結算為輸，不入帳、也不是退款', async () => {
+    const ctx = setup(); // 預設玩家16 / 莊家17（S17 不補）→ 玩家輸
+    await seedRound(ctx);
+    const result = await ctx.service.resolveAbandoned(ALICE);
+
+    expect(result.resolved).toBe(true);
+    expect(result.outcome).toBe('LOSE');
+    expect(ctx.db.users[0]?.balance).toBe(1_000n); // 沒有入帳（seedRound 本就沒扣過款）
+    expect(ctx.db.txRecords.some((t) => t.type === 'REFUND')).toBe(false);
+  });
+
+  it('回合早已被玩家自己結算（Redis 已無狀態）：resolved=false，不做任何事', async () => {
+    const ctx = setup();
+    const result = await ctx.service.resolveAbandoned(ALICE);
+    expect(result.resolved).toBe(false);
+  });
+
+  it('與玩家即時請求共用同一把鎖：鎖被佔用時清理也會等價地拋出 OptimisticLockError', async () => {
+    const ctx = setup();
+    await seedRound(ctx);
+    await ctx.redis.redis.set(`${roundKey(ALICE)}:lock`, 'someone-elses-token');
+    await expect(ctx.service.resolveAbandoned(ALICE)).rejects.toThrow(OptimisticLockError);
+  });
+});

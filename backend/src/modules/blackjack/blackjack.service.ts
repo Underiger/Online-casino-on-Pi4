@@ -369,6 +369,31 @@ export function createBlackjackService(deps: BlackjackServiceDeps) {
         return standAndSettle(userId, roundId, betRecordId, playerCards, state.dealerCards, deck, newBetAmount);
       });
     },
+
+    /**
+     * 孤兒回合清理（BullMQ job 呼叫，見 jobs/abandoned-round.job.ts）：
+     * 卡在 PLAYER_TURN → 強制視為停牌（Auto Stand），照正常莊家補牌流程跑完 settle()。
+     * 跟玩家自己呼叫的動作共用同一把 round-lock，不會跟即時請求互踩；如果回合在
+     * 搶到鎖之前就已經被玩家自己結算掉了（state===null），視為無事可做。
+     */
+    async resolveAbandoned(userId: string): Promise<{ resolved: boolean; outcome?: string }> {
+      return lock.withLock(lockKey(userId), LOCK_TTL_MS, async () => {
+        const state = await getState(userId);
+        if (state === null) return { resolved: false };
+
+        const betRecordId = (await findOpenBetRecord(userId, state.roundId)).id;
+        const result = await standAndSettle(
+          userId,
+          state.roundId,
+          betRecordId,
+          state.playerCards,
+          state.dealerCards,
+          state.deck,
+          state.betAmount,
+        );
+        return { resolved: true, outcome: result.resultKey };
+      });
+    },
   };
 }
 
