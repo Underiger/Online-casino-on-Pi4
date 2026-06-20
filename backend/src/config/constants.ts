@@ -205,3 +205,23 @@ export const HIGH_LOW_MAX_STREAK = 5;
 /** 牌堆剩餘張數低於此值時整副重新洗牌（pokergame _ensure_deck 同款邏輯） */
 export const HIGH_LOW_DECK_RESHUFFLE_THRESHOLD = 10;
 
+// ═══════════════════════════ Blackjack 二十一點 ═══════════════════════════
+//
+// 規則港自使用者自己的 pokergame/games/blackjack.py 上半部純函式（hand_value/
+// is_blackjack/is_bust/dealer_should_hit/settle，逐行對應）：J/Q/K=10、A=11（爆牌時
+// 逐張降為 1）；莊家 S17（含軟 17 一律停牌）；天生 Blackjack 賠 3:2；一般勝 1:1；
+// 平手退注；Double Down 限前兩張、加倍後強制停牌；不做 Split（與原版一致，原版
+// 註解也明寫「Split 留待第二版」）。
+//
+// 跟原版唯一的差異：原版是「剩 <20 張才重洗」的物理牌堆跨局延續；這裡改成
+// ★每一局重新 CSPRNG 洗一副全新 4 副牌★（不延續上一局剩餘的牌)，徹底排除任何
+// 算牌可能性，更符合本專案 server-authoritative 的精神。
+
+export const BLACKJACK_MIN_BET = 10;
+export const BLACKJACK_MAX_BET = 1000;
+export const BLACKJACK_NUM_DECKS = 4;
+/** false = S17（莊家軟 17 也停牌）；true = H17（軟 17 要補牌） */
+export const BLACKJACK_DEALER_HITS_SOFT_17 = false;
+/** 天生 Blackjack 賠率（3:2，注金 100 贏 150） */
+export const BLACKJACK_NATURAL_PAYOUT_NUMERATOR = 3;
+export const BLACKJACK_NATURAL_PAYOUT_DENOMINATOR = 2;

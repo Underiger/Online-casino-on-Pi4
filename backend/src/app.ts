@@ -34,6 +34,7 @@ import recordRoutes from './modules/record/record.routes.js';
 import monitorRoutes from './modules/monitor/monitor.routes.js';
 import dragonGateRoutes from './modules/dragon-gate/dragon-gate.routes.js';
 import highLowRoutes from './modules/high-low/high-low.routes.js';
+import blackjackRoutes from './modules/blackjack/blackjack.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -110,6 +111,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       'POST /api/roulette/bet': { capacity: 5, refillPerSec: 2 },
       'POST /api/dragon-gate/bet': { capacity: 5, refillPerSec: 2 },
       'POST /api/high-low/deal': { capacity: 5, refillPerSec: 2 },
+      'POST /api/blackjack/deal': { capacity: 5, refillPerSec: 2 },
     },
   });
   await app.register(hmacGuardPlugin, {
@@ -148,6 +150,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(dragonGateRoutes, { prefix: '/api/dragon-gate' });
   // High-Low：莊家 vs 閒家第二款（多步驟回合 + round-lock）；/deal 受 hmac-guard 保護
   await app.register(highLowRoutes, { prefix: '/api/high-low' });
+  // Blackjack：莊家 vs 閒家第三款（動作最多，沿用同一套 round-lock pattern）
+  await app.register(blackjackRoutes, { prefix: '/api/blackjack' });
 
   // 健康檢查：Nginx upstream check 與 docker healthcheck 都打這支
   app.get('/healthz', async () => ({ ok: true }));
