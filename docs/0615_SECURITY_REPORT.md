@@ -12,6 +12,26 @@
 
 ---
 
+## 📌 修復進度更新（2026-06-21）
+
+> 本節為事後修復追蹤；原始發現（§一～§六）維持 2026-06-15 報告當下的描述作為稽核留痕，僅同步更新各表的「狀態」欄與 §五 行動清單勾選。
+
+**已完成並經 running 容器驗證（`docker exec` 實測，非僅宣告值）：**
+
+- ✅ **浮動映像標籤全面釘選並重拉**——實際運行版本：
+  - Redis **7.4.6**（RediShell CVE-2025-49844 已修補）
+  - PostgreSQL **16.7-alpine**、Node.js **20.19.6**（涵蓋 2026-01 安全發布）、Nginx **1.27.4**（CVE-2025-23419 已修補）
+  - 三處檔案皆已釘選：`docker-compose.arm64.yml`、`docker-compose.yml`、`backend/Dockerfile`（deps + runtime 兩 stage）。
+- ✅ **Redis AUTH 啟用（P0 縱深防禦）**——生產 `docker-compose.arm64.yml` 的 redis 加上 `--requirepass`（`${REDIS_PASSWORD:?}` fail-loud 防空密碼靜默停用）；密碼由 `scripts/gen-secrets.sh` 產生並注入 `REDIS_URL`。已驗證：未帶密碼連線被拒（`WRONGPASS`）；`app.redis` / `app.redisSub`（socket.io adapter）/ BullMQ 三條連線均正常認證、app 健康、正式站 200。
+- ✅ axios 範圍對齊 admin（2026-06-16，原 §五 P2 已記錄）。
+
+**仍待處理 / 刻意保留：**
+
+- ⏳ 開發用 `docker-compose.yml` 維持無 AUTH（localhost 綁定，保留本機開發便利；`gen-secrets.sh` 僅在 `REDIS_URL` 指向生產服務 hostname=redis 時注入密碼）。
+- ⏳ P2 排程項：統一 player/admin 的 vue-router 大版本、評估 Prisma 5→6、CI 導入映像掃描（Trivy/Grype）+ Dependabot 例行。
+
+---
+
 ## 一、執行摘要
 
 **整體結論：npm 相依樹維護良好，主要風險集中在「浮動 Docker image tag」。**
@@ -24,9 +44,9 @@
 
 | # | 漏洞 | 元件 | 基礎 CVSS | 本專案實際影響 | 狀態 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | **CVE-2025-49844**（RediShell，Lua UAF RCE） | `redis:7-alpine` | **10.0 嚴重** | **高**（浮動標籤＋無 AUTH） | ⚠️ 需立即處置 |
-| 2 | CVE-2025-1094（psql 多位元組編碼 SQLi） | `postgres:16-alpine` | 8.1 高 | 低（Prisma 參數化查詢） | ⚠️ 需確認映像版本 |
-| 3 | CVE-2025-59464 等（TLS DoS／HTTP 走私） | `node:20-alpine` | 7.5 高（多項） | 中（nginx 前置部分緩解） | ⚠️ 需 rebuild |
+| 1 | **CVE-2025-49844**（RediShell，Lua UAF RCE） | `redis:7-alpine` | **10.0 嚴重** | **高**（浮動標籤＋無 AUTH） | ✅ 已釘選 7.4.6 ＋啟用 AUTH（2026-06-21，運行驗證） |
+| 2 | CVE-2025-1094（psql 多位元組編碼 SQLi） | `postgres:16-alpine` | 8.1 高 | 低（Prisma 參數化查詢） | ✅ 已釘選 16.7（運行驗證） |
+| 3 | CVE-2025-59464 等（TLS DoS／HTTP 走私） | `node:20-alpine` | 7.5 高（多項） | 中（nginx 前置部分緩解） | ✅ 已釘選 20.19（運行 20.19.6） |
 | 4 | CVE-2026-40175 / CVE-2025-62718（axios SSRF） | axios | **10.0 / 嚴重** | **極低**（前端專用、lockfile 已修補 1.17.0） | ✅ 已修補，需對齊 admin 範圍 |
 | 5 | CVE-2026-39363（Vite WebSocket 任意檔讀取） | vite | 嚴重 | 極低（lockfile 已 6.4.3、僅 dev server） | ✅ 已修補 |
 | 6 | CVE-2025-23419（nginx mTLS session 繞過） | `nginx:1.27-alpine` | 7.4 高 | **無**（未啟用 client cert 驗證） | ✅ 不適用 |
@@ -52,10 +72,10 @@
 | ioredis | `^5.10.1` | **5.10.1** | `package-lock.json:4605` |
 | @prisma/client | `^5.22.0` | **5.22.0** | `package-lock.json:1564` |
 | zod | `^3.23.8` | **3.25.76** | `package-lock.json:7853` |
-| Node.js | `>=20.0.0` | `node:20-alpine`（浮動） | `backend/Dockerfile:11` |
-| PostgreSQL | — | `postgres:16-alpine`（浮動） | `docker-compose.arm64.yml:22` |
-| Redis | — | `redis:7-alpine`（浮動） | `docker-compose.arm64.yml:46` |
-| Nginx | — | `nginx:1.27-alpine`（浮動） | `docker-compose.arm64.yml:110` |
+| Node.js | `>=20.0.0` | **`node:20.19-alpine`**（運行 20.19.6，已釘選） | `backend/Dockerfile:11,38` |
+| PostgreSQL | — | **`postgres:16.7-alpine`**（已釘選＋運行驗證） | `docker-compose.arm64.yml:22` |
+| Redis | — | **`redis:7.4.6-alpine`**（已釘選＋`--requirepass`） | `docker-compose.arm64.yml:46` |
+| Nginx | — | **`nginx:1.27.4-alpine`**（運行 1.27.4，已釘選） | `docker-compose.arm64.yml:110` |
 
 ---
 
@@ -157,14 +177,14 @@
 ## 五、修復行動清單（依優先序）
 
 **P0 — 立即（本週）**
-- [ ] Redis：`redis:7-alpine` → `redis:7.4.6-alpine`（或更新），`docker compose pull` 後重啟並以 `INFO server` 驗證版本 ≥ 7.4.6。
-- [ ] Redis：新增 `--requirepass`/ACL（縱深防禦），更新 `REDIS_URL`。
-- [ ] 稽核所有部署主機的 Redis 映像實際 build/pull 日期（2025-10-03 前者高度可疑）。
+- [x] Redis：`redis:7-alpine` → `redis:7.4.6-alpine`，已重拉並以 `INFO server` 驗證運行版本 **7.4.6**。（2026-06-21）
+- [x] Redis：新增 `--requirepass`（縱深防禦），更新 `REDIS_URL` 注入密碼；已驗證未帶密碼連線被拒（WRONGPASS）。（2026-06-21）
+- [x] 稽核部署主機的 Redis 映像版本：本機運行容器經 `docker exec ... redis_version` 確認為 7.4.6（非易受攻擊版）。（2026-06-21）
 
 **P1 — 短期（本迭代）**
-- [ ] PostgreSQL：釘選 `postgres:16.7-alpine`+ 並重拉、驗證版本。
-- [ ] Node.js：rebuild 後端映像拉取 2026-01 安全版；`backend/Dockerfile` 兩處 `FROM node:20-alpine` 釘選具體 patch。
-- [ ] Nginx：釘選 `nginx:1.27.4-alpine`+（衛生性，TLS 設定無需更動）。
+- [x] PostgreSQL：釘選 `postgres:16.7-alpine` 並運行驗證。（2026-06-21）
+- [x] Node.js：`backend/Dockerfile` 兩處 `FROM` 釘選 `node:20.19-alpine`；運行 `node -v` = **v20.19.6**（含 2026-01 安全版）。（2026-06-21）
+- [x] Nginx：釘選 `nginx:1.27.4-alpine`，運行 `nginx -v` = 1.27.4。（2026-06-21）
 
 **P2 — 衛生性 / 排程**
 - [x] 對齊 `admin-frontend` 的 axios 範圍至 `^1.17.0`。（2026-06-16 完成）

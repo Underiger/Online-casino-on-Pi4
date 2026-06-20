@@ -47,10 +47,17 @@ services:
     platform: linux/arm64
     container_name: casino-redis
     restart: unless-stopped
+    # REDIS_PASSWORD 由 scripts/gen-secrets.sh 產生並注入 REDIS_URL（見 0615_SECURITY_REPORT §三.1）。
+    # 缺值時 :? 讓 compose 直接報錯，避免 --requirepass "" 靜默停用 AUTH。
+    # REDISCLI_AUTH 供下方 healthcheck 的 redis-cli ping 自動認證（啟用 requirepass 後無此值會 NOAUTH）。
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD 未設定，請執行 bash scripts/gen-secrets.sh .env.production}
     # AOF 持久化確保 Jackpot 累積值、HMAC 會話金鑰等在重啟後不遺失
     # maxmemory 留 56 MB 餘裕給 OS overhead（mem_limit 256 MB）
     command:
       - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD 未設定，請執行 bash scripts/gen-secrets.sh .env.production}
       - --appendonly
       - "yes"
       - --maxmemory
