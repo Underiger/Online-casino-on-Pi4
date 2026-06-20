@@ -191,3 +191,17 @@ export const DRAGON_GATE_ODDS_TIER_3: Readonly<Record<DragonGateTier3Bucket, num
   WIDE: 0.44,
 };
 
+// ═══════════════════════════ High-Low 猜高低 ═══════════════════════════
+//
+// 規則港自使用者自己的 pokergame/games/high_low.py（純邏輯，逐行對應）：
+// 下注 → 開基準牌 → 猜高/低 → 猜對彩池×2（可收手或續押，連勝上限 5）→ 猜錯彩池歸零
+// → 同點 push（不算輸，換新基準牌再猜）。基準牌是 A 時不可猜「高」、是 2 時不可猜
+// 「低」——原版只在 UI 擋，這次移植時伺服器也必須驗證（防止繞過前端送出不可能的猜測）。
+// 單一 52 張牌，剩 < 10 張時自動重洗（防止記牌必勝）。
+
+export const HIGH_LOW_MIN_BET = 10;
+export const HIGH_LOW_MAX_BET = 1000;
+export const HIGH_LOW_MAX_STREAK = 5;
+/** 牌堆剩餘張數低於此值時整副重新洗牌（pokergame _ensure_deck 同款邏輯） */
+export const HIGH_LOW_DECK_RESHUFFLE_THRESHOLD = 10;
+

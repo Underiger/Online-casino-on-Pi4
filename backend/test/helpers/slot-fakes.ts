@@ -211,6 +211,28 @@ export function createFakeDb(options: FakeDbOptions) {
           (b) => b.userId === where.userId && b.gameType === where.gameType,
         ).length;
       },
+      async findFirst({
+        where,
+      }: {
+        where: { userId: string; roundId?: string; gameType: string };
+        orderBy?: unknown;
+        select?: unknown;
+      }) {
+        const matches = betRecords
+          .filter(
+            (b) =>
+              b.userId === where.userId &&
+              b.gameType === where.gameType &&
+              (where.roundId === undefined || b.roundId === where.roundId),
+          )
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        return matches[0] ?? null;
+      },
+      async findUniqueOrThrow({ where }: { where: { id: string } }) {
+        const record = betRecords.find((b) => b.id === where.id);
+        if (!record) throw new Error('P2025: record not found');
+        return record;
+      },
       async update({
         where,
         data,
