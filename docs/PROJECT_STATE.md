@@ -2,6 +2,39 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
+## M29：莊家 vs 閒家新遊戲——射龍門 / High-Low / Blackjack（2026-06-20）
+
+使用者規劃四大類新遊戲擴充（其餘三類：多人桌局 PvP、麻將、Solitaire 留待後續），本里程碑
+完成第一類「莊家 vs 閒家」三款，全部沿用 Slot 已驗證的「HTTP 同步請求 + 單一 Prisma 交易 +
+wallet.debit/credit + HMAC + 限流 + 異常偵測」模式：
+
+- **射龍門 Dragon Gate**（`backend/src/modules/dragon-gate/`）：開門牌（CSPRNG 洗牌，相鄰/相同
+  點數自動重開門）→ 攤開賠率 → 下注 → 結算。整回合唯一動錢操作（`bet`）用 `GETDEL` 原子 claim，
+  不需要鎖。賠率支援 `TIER_3`/`TIER_11` 雙模式（`DRAGON_GATE_ODDS_MODE` 開關，
+  `config/constants.ts`）。**Monte Carlo 模擬抓到一個真實的校準錯誤**：`TIER_3` 桶內倍率原本用
+  「未加權平均」推導，但兩張門牌的 rank 差距對應牌組數是 `(13-d)` 組，小 gap 出現頻率遠高於大
+  gap，未加權版本實測 RTP 只有 ~87.7%（偏離目標 92% 達 4pp+）；改成「出現次數加權平均」後
+  Monte Carlo 複測兩種模式都收斂到 92% ± 4pp。
+- **High-Low / Blackjack**（`backend/src/modules/{high-low,blackjack}/`）：規則港自使用者自己的
+  `Underiger/pokergame` repo（`games/{high_low,blackjack}.py` 純邏輯，逐行對應）。多步驟回合
+  （High-Low：deal/guess/continue/cash-out；Blackjack：deal/hit/stand/double）新增
+  `backend/src/security/round-lock.ts`（單實例 Redis `SET NX PX` + Lua release-if-owner，仿
+  roulette leader lock 同款慣例，非正式 multi-node Redlock）序列化同一回合的併發動作，避免
+  read-modify-write 競態（補兩張牌、重複扣款）。
+- **孤兒回合清理**（`backend/src/jobs/abandoned-round.job.ts`，每 2 分鐘掃描，用 Redis key 剩餘
+  TTL 倒推「5 分鐘無動作」，不需要替 BetRecord 加 updatedAt 欄位）：依目前卡在的階段強制結算
+  （High-Low 卡在猜測階段沒收彩池、卡在收手/續押選擇階段強制視為收手；Blackjack 卡在玩家回合
+  強制視為停牌）。**明確不使用 REFUND**——這個設計約束來自 plan review 階段使用者的明確修正：
+  單純退款會讓玩家在看到不利局面時故意斷線換回全額退款，等於無限次免費重試；逾時結算永遠只能
+  等於玩家當下零成本就能選的選項，絕不變出比繼續玩更好的結果。
+- 新增 `backend/src/shared/cards.ts`（標準 52 張牌 + Fisher-Yates 洗牌，CSPRNG 注入）供三款
+  遊戲共用；`packages/shared/src/{cards,dto/dragon-gate.dto}.ts` 鏡像前端型別。
+- 射龍門已含完整前端（`DragonGateView.vue` + `stores/dragon-gate.ts`）；High-Low/Blackjack
+  前端待後續補上。
+- 測試：新增 141 條（payout 純邏輯 + service 狀態機 + round-lock 併發 + 孤兒回合結算 + 射龍門
+  RTP Monte Carlo + 路由整合），總計 531 條全數通過；既有測試無回歸（除一支跟本次改動無關、
+  此前已確認的既有環境性 Prisma/SQLite 測試環境問題）。
+
 ## M28 後續修補（2026-06-16）
 
 v1.0.0 發布後的安全與驗收補強，無新里程碑：
