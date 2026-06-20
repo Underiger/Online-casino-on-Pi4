@@ -67,6 +67,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/gacha',
+    name: 'gacha',
+    component: () => import('../views/GachaView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/leaderboard',
     name: 'leaderboard',
     component: () => import('../views/LeaderboardView.vue'),

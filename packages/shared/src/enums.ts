@@ -23,6 +23,7 @@ export enum TxType {
   ADMIN_ADJUST = 'ADMIN_ADJUST',
   JACKPOT = 'JACKPOT',
   REFUND = 'REFUND',
+  GACHA = 'GACHA',
 }
 
 export enum CharmType {

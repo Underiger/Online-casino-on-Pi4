@@ -23,6 +23,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import walletRoutes from './modules/wallet/wallet.routes.js';
 import slotRoutes from './modules/slot/slot.routes.js';
 import charmRoutes from './modules/charm/charm.routes.js';
+import gachaRoutes from './modules/gacha/gacha.routes.js';
 import jackpotRoutes from './modules/jackpot/jackpot.routes.js';
 import rouletteRoutes from './modules/roulette/roulette.routes.js';
 import dailyRoutes from './modules/daily/daily.routes.js';
@@ -112,6 +113,8 @@ export async function buildApp(): Promise<FastifyInstance> {
       'POST /api/dragon-gate/bet': { capacity: 5, refillPerSec: 2 },
       'POST /api/high-low/deal': { capacity: 5, refillPerSec: 2 },
       'POST /api/blackjack/deal': { capacity: 5, refillPerSec: 2 },
+      // 扭蛋抽取：花 Coin 抽護符，收緊節奏防連點濫抽（十連算單次請求）
+      'POST /api/gacha/pull': { capacity: 5, refillPerSec: 2 },
     },
   });
   await app.register(hmacGuardPlugin, {
@@ -126,6 +129,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   // POST /api/slot/spin 自動受 hmac-guard signedRoutes 與 rate-limit routeRules 保護（M06 預埋）
   await app.register(slotRoutes, { prefix: '/api/slot' });
   await app.register(charmRoutes, { prefix: '/api/charm' });
+  // 扭蛋機：花 Coin 抽護符（護符獲取管道；JWT only，POST /pull 受 rate-limit 保護）
+  await app.register(gachaRoutes, { prefix: '/api/gacha' });
   // 公開路由（無認證；docs/04_API_SPEC.md §3.6）——pool 查詢與歷史中獎
   await app.register(jackpotRoutes, { prefix: '/api/jackpot' });
   // M15：輪盤狀態查詢（下注/取消走 Socket；狀態機於 initSocketServer 啟動）

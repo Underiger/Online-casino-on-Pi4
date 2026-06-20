@@ -4,6 +4,7 @@ export * from './wallet.dto';
 export * from './slot.dto';
 export * from './roulette.dto';
 export * from './charm.dto';
+export * from './gacha.dto';
 export * from './jackpot.dto';
 export * from './daily.dto';
 export * from './leaderboard.dto';

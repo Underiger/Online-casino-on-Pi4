@@ -63,6 +63,7 @@ enum TxType {
   ADMIN_ADJUST
   JACKPOT
   REFUND
+  GACHA
 }
 
 enum CharmType {

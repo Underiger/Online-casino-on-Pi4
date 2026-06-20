@@ -225,3 +225,45 @@ export const BLACKJACK_DEALER_HITS_SOFT_17 = false;
 /** 天生 Blackjack 賠率（3:2，注金 100 贏 150） */
 export const BLACKJACK_NATURAL_PAYOUT_NUMERATOR = 3;
 export const BLACKJACK_NATURAL_PAYOUT_DENOMINATOR = 2;
+
+// ═══════════════════════════ 扭蛋機 Gacha ═══════════════════════════
+//
+// 護符獲取管道（01_GDD §3.3）：在 daily 任務 / gift code 之外，玩家可花 Coin
+// 直接抽護符。依稀有度加權抽出一枚護符；由於 UserCharm @@unique([userId, charmId])
+// 限制「一人一符」，抽到已擁有的護符時自動轉換為 Coin 回饋（重複轉換）。
+//
+// 全部數值集中本檔（authoritative）；前端透過 GET /api/gacha/catalog 取得展示用
+// 機率/回饋，不另存一份於 packages/shared，避免雙寫漂移。
+
+/** 護符稀有度由低到高（保底比較與權重索引用；對齊 prisma CharmRarity enum） */
+export const CHARM_RARITY_ORDER = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const;
+export type CharmRarity = (typeof CHARM_RARITY_ORDER)[number];
+
+/** 單抽價格（Coin） */
+export const GACHA_SINGLE_COST = 500;
+/** 十連抽次數 */
+export const GACHA_TEN_PULL_COUNT = 10;
+/** 十連抽價格（Coin）：9 折——付 9 抽的價格抽 10 次 */
+export const GACHA_TEN_COST = GACHA_SINGLE_COST * (GACHA_TEN_PULL_COUNT - 1);
+
+/**
+ * 稀有度抽取權重（越大越常見）。實際機率 = weights[r] / Σ(池中存在的稀有度權重)，
+ * 故顯示機率由 service 依「啟用護符實際涵蓋的稀有度」即時 renormalize。
+ */
+export const GACHA_RARITY_WEIGHTS: Readonly<Record<CharmRarity, number>> = {
+  COMMON: 60,
+  RARE: 28,
+  EPIC: 10,
+  LEGENDARY: 2,
+};
+
+/** 十連抽保底：保證十抽內至少一枚此稀有度（含）以上 */
+export const GACHA_TEN_PULL_FLOOR: CharmRarity = 'RARE';
+
+/** 重複護符轉換回饋（Coin）；依稀有度遞增——抽到重複不至於血本無歸 */
+export const GACHA_DUPLICATE_REFUND: Readonly<Record<CharmRarity, number>> = {
+  COMMON: 100,
+  RARE: 250,
+  EPIC: 450,
+  LEGENDARY: 800,
+};
