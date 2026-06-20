@@ -21,6 +21,7 @@ import { registerLeaderboardJobs } from './jobs/leaderboard-refresh.job.js';
 import { registerMonitorScanJob } from './jobs/monitor-scan.job.js';
 import { registerModerationJobs } from './jobs/timed-mute.job.js';
 import { registerAbandonedRoundJob } from './jobs/abandoned-round.job.js';
+import { registerChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { env } from './config/env.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -50,6 +51,9 @@ export async function startServer(): Promise<void> {
 
   // High-Low / Blackjack 孤兒回合清理（每 2 分鐘掃描，5 分鐘無動作即強制結算）
   await registerAbandonedRoundJob(app);
+
+  // 聊天室 DB 保留清理（每日 04:30 Asia/Taipei，刪除超過 7 天的 ChatMessage）
+  await registerChatCleanupJob(app);
 
   let closing = false;
   const shutdown = (signal: NodeJS.Signals): void => {

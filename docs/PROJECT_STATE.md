@@ -35,6 +35,29 @@ wallet.debit/credit + HMAC + 限流 + 異常偵測」模式：
   RTP Monte Carlo + 路由整合），總計 531 條全數通過；既有測試無回歸（除一支跟本次改動無關、
   此前已確認的既有環境性 Prisma/SQLite 測試環境問題）。
 
+## M29 後續修補：補上聊天室訊息 DB 清理 job（2026-06-20）
+
+整理 01to05 設計文件對齊實作進度時發現的落差：`chat.service.ts` 註解原寫「PG 保留 7 天，
+排程清理留 M26」，但 M26 實際內容是 RTP 模擬與負載測試，這個 TODO 從未被排進任何里程碑，
+`chat_messages` 表會無限增長（Redis `chat:history` 快取本身已有獨立的 7 天 TTL 會自然過期，
+缺的只是 DB 持久層的清理）：
+
+- `backend/src/modules/chat/chat.service.ts`：新增 `cleanupOldMessages(retentionDays = 7)`——
+  依 `createdAt` 範圍 `deleteMany`，回傳刪除筆數；新增 `CHAT_DB_RETENTION_DAYS` 常數；
+  純粹依時間範圍刪除，不碰 Redis history（兩者保留窗一致但互不依賴，任一邊故障不影響另一邊）。
+- 新增 `backend/src/jobs/chat-cleanup.job.ts`（補上 v1.0 規劃稿原本就設計、但從未落地的
+  `chat-cleanup.job.ts`）：每日 **04:30 Asia/Taipei** repeatable cron（與 daily-reset 00:00、
+  leaderboard 每日快照錯峰，符合 02_TDD §6.5 排程紀律），processor 工廠與 BullMQ 接線分離
+  （`createChatCleanupProcessor`，fake deps 可直接單元測試）。
+- `backend/src/server.ts`：`registerChatCleanupJob(app)` 接線於 `registerAbandonedRoundJob`
+  之後。
+- 測試：新增 6 條（`chat.service.spec.ts` 的 `cleanupOldMessages` 3 條 + 新增
+  `chat-cleanup.job.spec.ts` 3 條），總計 537 條全數通過；`npm run lint`/`typecheck` 通過；
+  既有測試無回歸（同上，唯一失敗項為與本次改動無關的既有環境性問題）。
+- 同步校正 01to05 設計文件中兩處「DB 端尚無實際清理 job」的已知缺口記錄
+  （04_FOLDER_STRUCTURE.md §1、05_MILESTONES.md M17 行），並同步補上 02_TDD.md §3
+  jobs/ 清單裡的 `chat-cleanup.job.ts` 條目。
+
 ## M28 後續修補（2026-06-16）
 
 v1.0.0 發布後的安全與驗收補強，無新里程碑：

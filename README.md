@@ -266,7 +266,7 @@ bash scripts/deploy.sh
 ## 測試指令
 
 ```bash
-# 執行全部後端單元 + 整合測試（531 條，無需 PG/Redis）
+# 執行全部後端單元 + 整合測試（537 條，無需 PG/Redis）
 npm test
 
 # 產生覆蓋率報告（輸出至 backend/coverage/）

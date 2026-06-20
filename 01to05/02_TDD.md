@@ -94,7 +94,9 @@ backend/src/
 ├── sockets/         # Socket.IO 命名空間、事件註冊、簽章驗證中介層
 ├── jobs/            # BullMQ：jackpot-flush(10s)、leaderboard-refresh(5m)、daily-reset(00:00)、
 │                    #   monitor-scan(10m)、timed-mute(限時禁言到期解除)、
-│                    #   ★abandoned-round(2m，M29 孤兒回合清理：High-Low/Blackjack)
+│                    #   ★abandoned-round(2m，M29 孤兒回合清理：High-Low/Blackjack)、
+│                    #   ★chat-cleanup(每日 04:30 Asia/Taipei，補上規劃稿原訂但長期缺漏的
+│                    #   DB 端聊天訊息清理 job，2026-06-20 補上)
 ├── security/        # hmac.ts、nonce.ts、csprng.ts、anomaly.ts（異常下注偵測）、
 │                    #   ★round-lock.ts（M29：多步驟回合序列化鎖，見 §5.9）、totp.ts
 └── shared/          # 錯誤類別、常數、型別、★cards.ts（M29：標準 52 張牌 + Fisher-Yates 洗牌，

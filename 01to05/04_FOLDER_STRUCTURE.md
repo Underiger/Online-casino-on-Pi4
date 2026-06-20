@@ -102,9 +102,10 @@ backend/
 │   │   ├── leaderboard-refresh.job.ts # 5m REFRESH MATERIALIZED VIEW CONCURRENTLY
 │   │   ├── monitor-scan.job.ts      # 10m：異常偵測 NET_WIN P99 快取更新
 │   │   ├── timed-mute.job.ts        # 限時禁言到期自動解除（supersession 防護）
-│   │   └── ★abandoned-round.job.ts  # M29：每 2 分鐘掃描 High-Low/Blackjack 孤兒回合並強制結算
-│   │       （daily-reset 實際放在 modules/daily/daily.jobs.ts，非本目錄；chat 7 天保留目前
-│   │        只有 Redis 快取 TTL，**DB 端尚無實際清理 job**——與規劃稿 chat-cleanup.job.ts 有落差，屬已知缺口）
+│   │   ├── abandoned-round.job.ts   # M29：每 2 分鐘掃描 High-Low/Blackjack 孤兒回合並強制結算
+│   │   └── ★chat-cleanup.job.ts     # 2026-06-20 補上：每日 04:30 Asia/Taipei 刪除超過 7 天的
+│   │       DB ChatMessage（與 Redis history 的 7 天 TTL 互不依賴）；先前缺漏的「已知缺口」已補齊
+│   │       （daily-reset 實際放在 modules/daily/daily.jobs.ts，非本目錄）
 │   ├── security/
 │   │   ├── csprng.ts            # ★ 全專案唯一亂數出口（ESLint 禁 Math.random）
 │   │   ├── hmac.ts              # canonical 組字串、timingSafeEqual 比對、金鑰存取
