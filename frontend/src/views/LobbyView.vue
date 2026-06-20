@@ -71,6 +71,8 @@ const games: GameItem[] = [
   { name: '老虎機', icon: '🎰', route: '/slot', desc: '轉動滾輪，博取大獎！' },
   { name: '輪盤', icon: '🎡', route: '/roulette', desc: '全服同場，輪盤對決！' },
   { name: '射龍門', icon: '🚪', route: '/dragon-gate', desc: '開門猜大小，賠率隨門寬浮動！' },
+  { name: '猜高低', icon: '🃏', route: '/high-low', desc: '猜對連續加倍，連勝上限 5 次！' },
+  { name: '二十一點', icon: '🂡', route: '/blackjack', desc: '比點數大小，天生 Blackjack 賠 3:2！' },
   { name: '排行榜', icon: '🏆', route: '/leaderboard', desc: '頂尖玩家爭霸' },
   { name: '個人頁', icon: '👤', route: '/profile', desc: '成就、護符、交易紀錄' },
 ];

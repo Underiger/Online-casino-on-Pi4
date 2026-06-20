@@ -37,6 +37,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/high-low',
+    name: 'high-low',
+    component: () => import('../views/HighLowView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/blackjack',
+    name: 'blackjack',
+    component: () => import('../views/BlackjackView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/leaderboard',
     name: 'leaderboard',
     component: () => import('../views/LeaderboardView.vue'),

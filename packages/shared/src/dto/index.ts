@@ -12,3 +12,5 @@ export * from './gift-code.dto';
 export * from './admin.dto';
 export * from './monitor.dto';
 export * from './dragon-gate.dto';
+export * from './high-low.dto';
+export * from './blackjack.dto';
