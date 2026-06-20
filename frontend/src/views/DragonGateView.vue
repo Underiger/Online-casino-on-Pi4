@@ -46,6 +46,7 @@ async function handleBet(): Promise<void> {
 <template>
   <div class="dragon-gate">
     <header class="header">
+      <RouterLink to="/casino" class="back-btn" aria-label="返回大廳">← 大廳</RouterLink>
       <h1>射龍門</h1>
       <CoinDisplay />
     </header>
@@ -107,6 +108,15 @@ async function handleBet(): Promise<void> {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.back-btn {
+  color: #666;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+.back-btn:hover {
+  color: #c80;
 }
 .error {
   color: #d33;
