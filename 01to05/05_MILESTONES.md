@@ -56,7 +56,7 @@
 | M17 | 聊天室 | M08 | 1 | 收發事件、URL 過濾 + 轉義 + 200 字限制、令牌桶（1/2s、10/min）、Redis List 近 200 則（7 天 TTL）、ChatPanel 前端、系統訊息樣式；★自動禁言為 M28 後續修補才補上；DB 端定期清理 job 當時未落地，已於 **2026-06-20** 後續修補補上 `jobs/chat-cleanup.job.ts`（每日 04:30 Asia/Taipei 刪除超過 7 天的 ChatMessage，詳見 `docs/PROJECT_STATE.md`） | ✅ 2026-06-12 |
 | M18 | 每日系統 | M07, M11, M15 | 1 | 登入獎勵（連續係數）、任務進度事件驅動累加 + 領取、今日幸運符號輪換、`daily.jobs.ts`（00:00 Asia/Taipei：重置 + loadout 快取 SCAN 批量失效）、DailyTaskDrawer 前端 | ✅ 2026-06-13＊ |
 | M19 | 排行榜 | M07, M11, M15 | 1 | 三張物化視圖 raw SQL migration 完成、`leaderboard-refresh.job`（5m CONCURRENTLY）、每日 Top100 快照寫入、查詢 API + LeaderboardView | ✅ 2026-06-13＊ |
-| M20 | 成就與個人頁 | M11, M15 | 1 | 12 個成就判定（事件驅動，實際接線 10 個觸發點；DIAMOND_TRIPLE/WILD_TRIPLE 已定義但暫未接線觸發）、解鎖發幣 + 廣播、ProfileView（統計、護符圖鑑、歷史名次） | ✅ 2026-06-13 |
+| M20 | 成就與個人頁 | M11, M15 | 1 | 12 個成就判定（事件驅動）、解鎖發幣 + 廣播、ProfileView（統計、護符圖鑑、歷史名次）；DIAMOND_TRIPLE/WILD_TRIPLE 當時僅定義未接線，已於 **2026-06-20** 後續修補補上（`slot.routes.ts` 三連判定區塊，與 LUCKY7_TRIPLE 同款 `reels[0] === 'DIAMOND'/'WILD'` 模式） | ✅ 2026-06-13 |
 | M21 | 管理後台後端（核心） | M06, M07 | 2 | Admin 角色路由隔離、TOTP 綁定/驗證（secret AES-256-GCM、恢復碼）、登入強制 2FA、高危操作逐次重驗（code 防重用）、玩家查詢/封鎖/禁言、手動加扣幣（走 wallet + 審計）、AdminAuditLog 中介層 | ✅ 2026-06-13 |
 | M22 | Gift Code 與紀錄查詢 | M21 | 1 | 建碼（≥16 字元 CSPRNG、必填時效）、兌換交易（條件更新 used_count + Redemption 唯一鍵雙保險）、登入/下注/交易三類分頁查詢 API、公告 CRUD | ✅ 2026-06-13 |
 | M23 | 管理後台前端 | M21, M22 | 1.5 | 獨立 Vue app（/admin）：兩步登入、PlayersView（ReverifyDialog 攔截高危操作）、GiftCodeView（建碼僅顯示一次）、RecordsView、AnnouncementView、MonitorView | ✅ 2026-06-14 |
