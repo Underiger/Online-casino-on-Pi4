@@ -82,7 +82,10 @@ const games: GameItem[] = [
   <div class="lobby">
     <!-- 頂部導航 -->
     <header class="header">
-      <div class="brand">🎰 Virtual Casino</div>
+      <div class="header-left">
+        <RouterLink to="/" class="back-btn" aria-label="返回選擇頁">← 選擇頁</RouterLink>
+        <div class="brand">🎰 Virtual Casino</div>
+      </div>
       <div class="header-right">
         <CoinDisplay />
         <span class="username">{{ auth.user?.username }}</span>
@@ -146,6 +149,23 @@ const games: GameItem[] = [
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-btn {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.2s;
+}
+
+.back-btn:hover {
+  color: #ffd700;
 }
 
 .brand {

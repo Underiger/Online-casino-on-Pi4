@@ -216,7 +216,7 @@ onUnmounted(() => {
   <div class="slot-view">
     <!-- ─── Header ─────────────────────────────────────── -->
     <header class="header">
-      <RouterLink to="/" class="back-btn" aria-label="返回大廳">← 大廳</RouterLink>
+      <RouterLink to="/casino" class="back-btn" aria-label="返回大廳">← 大廳</RouterLink>
       <span class="page-title">🎰 老虎機</span>
       <div class="header-right">
         <button
