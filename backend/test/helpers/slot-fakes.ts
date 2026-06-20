@@ -211,6 +211,19 @@ export function createFakeDb(options: FakeDbOptions) {
           (b) => b.userId === where.userId && b.gameType === where.gameType,
         ).length;
       },
+      async update({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { detail?: Record<string, unknown>; payout?: bigint };
+      }) {
+        const record = betRecords.find((b) => b.id === where.id);
+        if (!record) throw new Error('P2025: record not found');
+        if (data.detail !== undefined) record.detail = data.detail;
+        if (data.payout !== undefined) record.payout = data.payout;
+        return record;
+      },
     },
     balanceTransaction: {
       async create({ data }: { data: Omit<FakeTxRecord, 'id' | 'createdAt'> }) {
@@ -397,6 +410,22 @@ export function createFakeRedis() {
       const hadHash = hashes.delete(key);
       const hadList = lists.delete(key);
       return had || hadHash || hadList ? 1 : 0;
+    },
+    // GETDEL key：原子讀出同時刪除（射龍門 bet 單步 claim 用）
+    async getdel(key: string): Promise<string | null> {
+      check('getdel');
+      const value = store.get(key) ?? null;
+      store.delete(key);
+      return value;
+    },
+    // 簡化版 eval：round-lock 的 RELEASE_IF_OWNER_LUA 語義（GET 比對才 DEL）
+    async eval(_script: string, _numKeys: number, key: string, token: string): Promise<number> {
+      check('eval');
+      if (store.get(key) === token) {
+        store.delete(key);
+        return 1;
+      }
+      return 0;
     },
     async incr(key: string): Promise<number> {
       check('incr');

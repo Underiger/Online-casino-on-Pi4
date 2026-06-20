@@ -32,6 +32,7 @@ import adminRoutes, { publicAnnouncementRoutes } from './modules/admin/admin.rou
 import giftCodeRoutes from './modules/gift-code/gift-code.routes.js';
 import recordRoutes from './modules/record/record.routes.js';
 import monitorRoutes from './modules/monitor/monitor.routes.js';
+import dragonGateRoutes from './modules/dragon-gate/dragon-gate.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -106,6 +107,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     routeRules: {
       'POST /api/slot/spin': { capacity: 5, refillPerSec: 2 },
       'POST /api/roulette/bet': { capacity: 5, refillPerSec: 2 },
+      'POST /api/dragon-gate/bet': { capacity: 5, refillPerSec: 2 },
     },
   });
   await app.register(hmacGuardPlugin, {
@@ -140,6 +142,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(recordRoutes, { prefix: '/api/admin/records' });
   // M24：系統監控（adminOnly GET /api/admin/monitor）
   await app.register(monitorRoutes, { prefix: '/api/admin' });
+  // 射龍門：莊家 vs 閒家新遊戲第一款；/bet 自動受 hmac-guard 與 rate-limit 保護
+  await app.register(dragonGateRoutes, { prefix: '/api/dragon-gate' });
 
   // 健康檢查：Nginx upstream check 與 docker healthcheck 都打這支
   app.get('/healthz', async () => ({ ok: true }));

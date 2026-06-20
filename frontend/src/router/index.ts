@@ -31,6 +31,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/dragon-gate',
+    name: 'dragon-gate',
+    component: () => import('../views/DragonGateView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/leaderboard',
     name: 'leaderboard',
     component: () => import('../views/LeaderboardView.vue'),

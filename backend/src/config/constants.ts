@@ -114,3 +114,80 @@ export const LUCKY_SYMBOL_PAYOUT_MULTIPLIER = 1.5;
 
 /** Diamond 三連附加 Jackpot 點數（GDD §3.2） */
 export const JACKPOT_POINTS_DIAMOND_TRIPLE = 50;
+
+// ═══════════════════════════ 射龍門 Dragon Gate ═══════════════════════════
+//
+// 規則：開兩張門牌（門牌不重洗、來自同一副已抽掉 2 張的 52 張牌），閒家下注
+// 第三張牌是否「介於」兩門之間（不含門牌本身點數）；剛好等於某張門牌點數視為
+// 「踩柱」賠雙倍（多輸一個注額）；其餘（門外）輸掉單注。兩門相鄰或相同（gap=0，
+// 無法介於）由 service 層自動重開門，不進入下注流程。
+//
+// 機率（兩張門牌之外還有 50 張牌；門牌各自剩 3 張、gap 個點數各 4 張未被動過）：
+//   P(介於) = gap * 4 / 50
+//   P(踩柱) = (3+3) / 50 = 0.12（與 gap 無關，恆定值——CARDS_LEFT_AFTER_DOORS 用此推算）
+// 目標 RTP 與 slot 一致（92%），解 multiplier M：
+//   P(介於)*(1+M) - 2*P(踩柱) - (1 - P(介於) - P(踩柱)) = RTP - 1
+//   化簡：M = (2 - RTP + P(踩柱)) / P(介於) - 1 = 1.04 / P(介於) - 1（代入 RTP=0.92, P(踩柱)=0.12）
+//
+// 兩種精細度都做、用常數開關切換（業主決定）：
+//   TIER_11：gap 1~11 各自一個 M，最貼近真實機率，11 組數字
+//   TIER_3 ：gap 分窄(1-3)/中(4-7)/寬(8-11) 三檔，M 由該檔內各 gap 的 P(介於) 平均值代入同公式算出
+// 兩種模式的精確 RTP 由 dragon-gate Monte Carlo 模擬測試驗證（仿 slot M26）。
+
+export const DRAGON_GATE_MIN_BET = 10;
+export const DRAGON_GATE_MAX_BET = 1000; // 與 roulette 單注上限一致
+
+export const DRAGON_GATE_TARGET_RTP = 0.92;
+/** 踩柱機率恆定 6/50（與 gap 無關）：兩張門牌各剩 3 張 / 扣掉門牌後剩 50 張 */
+export const DRAGON_GATE_DOOR_HIT_PROBABILITY = 6 / 50;
+
+export type DragonGateOddsMode = 'TIER_3' | 'TIER_11';
+
+/** 切換開關：改這個常數即可切換賠率精細度，不需要改任何邏輯 */
+export const DRAGON_GATE_ODDS_MODE: DragonGateOddsMode = 'TIER_11';
+
+/** gap（1~11）→ multiplier；M = 1.04 / (gap*0.08) - 1 = 13/gap - 1，四捨五入至小數點後 2 位 */
+export const DRAGON_GATE_ODDS_TIER_11: Readonly<Record<number, number>> = {
+  1: 12.0,
+  2: 5.5,
+  3: 3.33,
+  4: 2.25,
+  5: 1.6,
+  6: 1.17,
+  7: 0.86,
+  8: 0.63,
+  9: 0.44,
+  10: 0.3,
+  11: 0.18,
+};
+
+export type DragonGateTier3Bucket = 'NARROW' | 'MEDIUM' | 'WIDE';
+
+/** gap 範圍 → 3 檔分桶（窄 1-3 / 中 4-7 / 寬 8-11） */
+export const DRAGON_GATE_TIER_3_BUCKETS: ReadonlyArray<{
+  bucket: DragonGateTier3Bucket;
+  minGap: number;
+  maxGap: number;
+}> = [
+  { bucket: 'NARROW', minGap: 1, maxGap: 3 },
+  { bucket: 'MEDIUM', minGap: 4, maxGap: 7 },
+  { bucket: 'WIDE', minGap: 8, maxGap: 11 },
+];
+
+/**
+ * 各桶 multiplier。★易錯點★：不能用桶內各 gap 的 P(介於) 直接做「未加權平均」——
+ * 兩張門牌的 rank 差距 d=|a-b| 對應的牌組數是 (13-d) 組（例如 d=2/gap=1 有 12 組，
+ * d=12/gap=11 只有 1 組），所以小 gap 在隨機開門時出現的頻率遠高於大 gap，必須用
+ * 「出現次數加權平均」P 再代入同一公式（用 Monte Carlo 模擬驗證過——未加權平均版本
+ * 實測 RTP 只有 ~87.7%，偏離目標 92% 達 4 個百分點以上，已修正）：
+ *   count(gap) = 12 - gap（gap=1~11）
+ *   NARROW(1-3)：weighted P = 0.08*(11*1+10*2+9*3)/30 ≈ 0.15467 → M ≈ 5.72
+ *   MEDIUM(4-7)：weighted P = 0.08*(8*4+7*5+6*6+5*7)/26 ≈ 0.42462 → M ≈ 1.45
+ *   WIDE(8-11) ：weighted P = 0.08*(4*8+3*9+2*10+1*11)/10 = 0.72 → M ≈ 0.44
+ */
+export const DRAGON_GATE_ODDS_TIER_3: Readonly<Record<DragonGateTier3Bucket, number>> = {
+  NARROW: 5.72,
+  MEDIUM: 1.45,
+  WIDE: 0.44,
+};
+

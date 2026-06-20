@@ -11,3 +11,4 @@ export * from './chat.dto';
 export * from './gift-code.dto';
 export * from './admin.dto';
 export * from './monitor.dto';
+export * from './dragon-gate.dto';
