@@ -99,19 +99,17 @@ docker compose \
 # ── 6. 資料庫 Migration ───────────────────────────────────────────────────────
 info "[6/7] 執行 Prisma migration..."
 
-# 先確保 postgres 啟動
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d postgres redis
-info "  等待 PostgreSQL 健康檢查..."
-PG_USER="$(grep -E '^POSTGRES_USER=' "$ENV_FILE" | cut -d= -f2- || true)"
-PG_DB="$(grep -E '^POSTGRES_DB=' "$ENV_FILE" | cut -d= -f2- || true)"
-PG_USER="${PG_USER:-casino}"
-PG_DB="${PG_DB:-casino_prod}"
-timeout 60 bash -c "
-  until docker compose --env-file '$ENV_FILE' -f '$COMPOSE_FILE' exec -T postgres \
-    pg_isready -q -U '$PG_USER' -d '$PG_DB' 2>/dev/null; do
-    sleep 2
-  done
-" || error "PostgreSQL 60 秒內未就緒，請執行 docker compose -f \"$COMPOSE_FILE\" logs postgres 檢查"
+# 先啟動 redis（不阻塞 migrate；Prisma migration 僅依賴 postgres），再用 compose 原生
+# healthcheck 等 postgres 變「健康」。改用 --wait 取代手寫 pg_isready 迴圈的理由：
+#   1. 杜絕「容器 Up ≠ DB 就緒」競態：up -d 一見進程存在就回 Running，但 postgres 首次
+#      initdb／崩潰復原期間 pg_isready 會回 rejecting connections，舊迴圈 60 秒窗口在 Pi4
+#      build 後的 I/O 壓力下容易逾時誤判。--wait 直接採用容器自身 healthcheck（含 start_period）。
+#   2. 不再用 2>/dev/null 吞掉真正的失敗原因，逾時即報錯。
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d redis
+info "  等待 PostgreSQL 變健康（compose --wait，上限 120 秒）..."
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" \
+  up -d --wait --wait-timeout 120 postgres \
+  || error "PostgreSQL 120 秒內未變健康，請執行 docker compose -f \"$COMPOSE_FILE\" logs postgres 檢查"
 
 # 使用 migrate 服務（deps build stage，含 prisma CLI）
 docker compose \
