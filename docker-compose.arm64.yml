@@ -54,6 +54,10 @@ services:
       REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD 未設定，請執行 bash scripts/gen-secrets.sh .env.production}
     # AOF 持久化確保 Jackpot 累積值、HMAC 會話金鑰等在重啟後不遺失
     # maxmemory 留 56 MB 餘裕給 OS overhead（mem_limit 256 MB）
+    # maxmemory-policy 必須為 noeviction：本 Redis 同時承載 BullMQ 工作佇列、Jackpot
+    #   INCRBY 累積值與會話/nonce 金鑰，allkeys-lru 會在達上限時靜默淘汰這些關鍵資料
+    #   （BullMQ 啟動時即警告 "Eviction policy ... should be noeviction"）。改為達上限時
+    #   寫入報錯（fail loud），保護財務與佇列資料不被默默丟棄。
     command:
       - redis-server
       - --requirepass
@@ -63,7 +67,7 @@ services:
       - --maxmemory
       - 200mb
       - --maxmemory-policy
-      - allkeys-lru
+      - noeviction
     volumes:
       - redisdata:/data
     mem_limit: 256m
