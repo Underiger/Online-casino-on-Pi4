@@ -72,6 +72,7 @@ enum CharmType {
   CONDITIONAL
   PITY
   BONUS
+  LUCK
 }
 
 enum CharmRarity {
@@ -238,6 +239,9 @@ model Charm {
   // RULE:        { wildSubstitute: true }
   // PITY:        { threshold: 10, bonus: 0.5 }
   // BONUS:       { onSymbol: "DIAMOND", jackpotPoints: 100 }
+  // LUCK:        { symbol: "BAR", luck: 65 }
+  //              機率觸發、鎖定第3軸覆寫為 symbol（不動權重，與 p³ 連線機率解耦）；
+  //              自然結果已是任意三連時不覆寫。luck 0–100 對應觸發機率（v1 線性 1:1）。
 
   enabled   Boolean     @default(true)
   createdAt DateTime    @default(now()) @map("created_at")
