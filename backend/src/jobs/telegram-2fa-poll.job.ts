@@ -3,10 +3,14 @@
  *
  * 背景：admin 高危操作 2FA 重驗可改用 Telegram 推播核准（取代手動輸入 TOTP）；
  * Telegram 的 getUpdates 長輪詢不可被同一 bot token 的多個進程同時呼叫（會
- * 409 Conflict），cluster ×2 workers 不能各自起一個輪詢迴圈。解法與
- * jackpot-flush.job / timed-mute.job 同款：掛一個 repeatable BullMQ job，
- * BullMQ 以 repeat key 去重，同一時刻只有一個 worker 真正執行——天然單例、
- * 無需手動選主。
+ * 409 Conflict），cluster ×2 workers 不能各自起一個輪詢迴圈。
+ *
+ * 注意：單靠 BullMQ repeat key 去重「不夠」——repeat 排程只保證同一個 tick
+ * 不會被重複加入佇列，但下一個 tick 仍會準時（每 2s）加入，若上一個 tick
+ * 因網路延遲跑超過 2 秒，兩個 tick 可能同時各被一個 cluster worker 的 Worker
+ * 實例領走、同時呼叫 getUpdates → 409。實測已驗證會發生。真正的解法是只讓
+ * cluster worker#1 註冊這個 Queue/Worker（見 registerTelegramPollJob 開頭的
+ * workerId 檢查）——其餘 worker 完全不建立連線，從根本上避免多進程併發。
  *
  * 短輪詢（每 2 秒一次 getUpdates(timeout=0)）而非長輪詢：job 執行時間可控、
  * 不佔用 Worker concurrency=1 的執行緒太久，與既有 tick(5s)/flush(10s) 的
@@ -19,6 +23,7 @@
  * 失敗語義：processor 捕捉一切錯誤僅記日誌——Telegram API 故障不可中斷其他
  * 服務，下一次 2 秒後的迭代自動重試。
  */
+import cluster from 'node:cluster';
 import { Worker, type Job, type Queue } from 'bullmq';
 import type { FastifyInstance } from 'fastify';
 import { telegramEnabled } from '../integrations/telegram.js';
@@ -56,11 +61,16 @@ export function createTelegramPollProcessor(deps: TelegramPollJobDeps) {
       }
       log.warn({ jobName: job.name }, 'telegram-2fa-job: 未知任務名稱，略過');
     } catch (err) {
-      // 最後保險絲：job 失敗只記日誌，永不讓例外外溢中斷 Worker
-      (log.error ?? log.warn)(
-        { err: (err as Error).message, jobName: job.name },
-        'telegram-2fa-job: 任務執行失敗（下次迭代自動重試）',
-      );
+      // 最後保險絲：job 失敗只記日誌，永不讓例外外溢中斷 Worker。
+      // 注意：真實 pino instance 的 error/warn 方法依賴內部 this 綁定——
+      // 取出函式參考後脫離 this 呼叫會拋 TypeError，必須維持 log.xxx(...) 呼叫形式。
+      const entry = { err: (err as Error).message, jobName: job.name };
+      const msg = 'telegram-2fa-job: 任務執行失敗（下次迭代自動重試）';
+      if (log.error) {
+        log.error(entry, msg);
+      } else {
+        log.warn(entry, msg);
+      }
     }
   };
 }
@@ -73,7 +83,10 @@ export interface TelegramPollJobsHandle {
 /**
  * 啟動時註冊（server.ts，與其他 register*Jobs 同層）：
  *   1. 未設定 Telegram 2FA → log info 後直接 return（零開銷，不建立連線）。
- *   2. 註冊 repeatable poll(2s)；建立 Worker 消費（呼叫 admin.pollTelegramUpdates）；
+ *   2. 非 cluster worker#1 → log info 後直接 return（避免多進程同時呼叫
+ *      getUpdates 導致 409，見檔頭說明）。單進程／非 cluster 環境（測試、
+ *      WORKERS=1）下 cluster.worker 為 undefined，視為 worker#1 正常註冊。
+ *   3. 註冊 repeatable poll(2s)；建立 Worker 消費（呼叫 admin.pollTelegramUpdates）；
  *      onClose 收尾（Worker → Queue → 專用連線）。
  */
 export async function registerTelegramPollJob(
@@ -81,6 +94,14 @@ export async function registerTelegramPollJob(
 ): Promise<TelegramPollJobsHandle | null> {
   if (!telegramEnabled) {
     app.log.info('telegram-2fa-job: 未設定 TELEGRAM_BOT_TOKEN/TELEGRAM_ADMIN_CHAT_ID，略過註冊');
+    return null;
+  }
+
+  const workerId = cluster.worker?.id ?? 1;
+  if (workerId !== 1) {
+    app.log.info(
+      `telegram-2fa-job: cluster worker#${workerId} 非 worker#1，略過註冊（避免多進程同時呼叫 Telegram getUpdates 導致 409）`,
+    );
     return null;
   }
 
