@@ -94,7 +94,7 @@ docker compose \
   -f "$COMPOSE_FILE" \
   build \
   --build-arg BUILDKIT_INLINE_CACHE=1 \
-  app migrate
+  app migrate seed
 
 # ── 6. 資料庫 Migration ───────────────────────────────────────────────────────
 info "[6/7] 執行 Prisma migration..."
