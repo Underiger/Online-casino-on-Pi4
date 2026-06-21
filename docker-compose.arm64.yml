@@ -177,6 +177,36 @@ services:
     profiles:
       - migrate
 
+  # ── Prisma Seed Runner（profile:migrate，migration 之後執行；upsert 故可重複執行）──────
+  # 使用 deps build stage（含完整 devDependencies，包括 tsx）
+  # 執行：docker compose -f docker-compose.arm64.yml --profile migrate run --rm seed
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: deps
+    platform: linux/arm64
+    container_name: casino-seed
+    working_dir: /app
+    volumes:
+      - ./backend/prisma:/app/backend/prisma:ro
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "執行 prisma db seed..."
+        node_modules/.bin/tsx backend/prisma/seed.ts
+        echo "Seed 完成。"
+    env_file: .env.production
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
 # ── 網路 ────────────────────────────────────────────────────────────────────────
 networks:
   # 橋接網路：postgres/redis/app 僅對內互通，不對宿主機暴露 port

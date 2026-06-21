@@ -8,7 +8,7 @@
 #   3. 安裝依賴（npm install）
 #   4. 建置前端 dist（frontend + admin-frontend）
 #   5. 拉取/建置 Docker 映像
-#   6. 執行 Prisma migration（依賴 postgres 健康）
+#   6. 執行 Prisma migration + seed（依賴 postgres 健康；seed 為 upsert，可重複執行）
 #   7. 滾動重啟服務（up -d --build）
 #
 # 用法（專案根目錄執行）：
@@ -119,6 +119,16 @@ docker compose \
   run --rm migrate
 
 info "  Migration 完成"
+
+# Seed 為 upsert，可重複執行；確保新增的種子資料（如護符池）每次部署都同步到生產環境
+info "  執行 prisma db seed（upsert，安全可重複執行）..."
+docker compose \
+  --env-file "$ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  --profile migrate \
+  run --rm seed
+
+info "  Seed 完成"
 
 # ── 7. 滾動重啟全部服務 ────────────────────────────────────────────────────────
 info "[7/7] 啟動/重啟全部服務..."
