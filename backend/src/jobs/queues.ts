@@ -21,6 +21,9 @@ export const JACKPOT_FLUSH_QUEUE_NAME = 'jackpot-flush';
 /** Moderation 延遲任務 queue 名稱（限時禁言到期自動解除等） */
 export const MODERATION_QUEUE_NAME = 'moderation';
 
+/** Telegram 2FA 推播短輪詢 queue 名稱 */
+export const TELEGRAM_2FA_QUEUE_NAME = 'telegram-2fa-poll';
+
 /** BullMQ 專用 ioredis 連線（Queue 與 Worker 各建一條） */
 export function createJobConnection(): Redis {
   return new Redis(env.REDIS_URL, {
@@ -52,6 +55,17 @@ export function createModerationQueue(connection: Redis): Queue {
     connection,
     defaultJobOptions: {
       // 一次性延遲任務：完成即清、失敗留少量供排錯
+      removeOnComplete: true,
+      removeOnFail: 100,
+    },
+  });
+}
+
+/** telegramPollQueue：repeatable 短輪詢（2s）任務掛載於此 */
+export function createTelegramPollQueue(connection: Redis): Queue {
+  return new Queue(TELEGRAM_2FA_QUEUE_NAME, {
+    connection,
+    defaultJobOptions: {
       removeOnComplete: true,
       removeOnFail: 100,
     },
