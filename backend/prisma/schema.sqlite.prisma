@@ -63,6 +63,10 @@ model User {
   refreshTokens RefreshToken[]
   achievements  UserAchievement[]
   snapshots     LeaderboardSnapshot[]
+  plots         Plot[]                @relation("PlotOwner")
+  plotRaids     Plot[]                @relation("PlotRaider")
+  raidsDone     RaidLog[]             @relation("RaidRaider")
+  raidsSuffered RaidLog[]             @relation("RaidVictim")
 
   @@index([flagged])
   @@map("users")
@@ -352,4 +356,68 @@ model UserAchievement {
 
   @@unique([userId, achievementId])
   @@map("user_achievements")
+}
+
+// ─────────────────────────── 農場（enum PlotState → String；與主 schema 對齊） ───────────────────────────
+
+model SeedType {
+  id          String  @id @default(cuid())
+  code        String  @unique // "GOLDEN_WHEAT"
+  name        String
+  description String
+  cost        BigInt
+  harvest     BigInt
+  growSeconds Int     @map("grow_seconds")
+  imageKey    String  @map("image_key")
+  enabled     Boolean @default(true)
+
+  plots Plot[]
+
+  @@map("seed_types")
+}
+
+model Plot {
+  id        String @id @default(cuid())
+  ownerId   String @map("owner_id")
+  plotIndex Int    @map("plot_index")
+  state     String @default("EMPTY") // enum PlotState: EMPTY | GROWING | READY
+
+  seedTypeId String?   @map("seed_type_id")
+  plantedAt  DateTime? @map("planted_at")
+  readyAt    DateTime? @map("ready_at")
+  guardUntil DateTime? @map("guard_until")
+
+  raidedById   String? @map("raided_by_id")
+  raidedAmount BigInt  @default(0) @map("raided_amount")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner    User      @relation("PlotOwner", fields: [ownerId], references: [id])
+  seedType SeedType? @relation(fields: [seedTypeId], references: [id])
+  raidedBy User?     @relation("PlotRaider", fields: [raidedById], references: [id])
+  raidLogs RaidLog[]
+
+  @@unique([ownerId, plotIndex])
+  @@index([state, readyAt])
+  @@map("plots")
+}
+
+model RaidLog {
+  id       String @id @default(cuid())
+  raiderId String @map("raider_id")
+  victimId String @map("victim_id")
+  plotId   String @map("plot_id")
+  amount   BigInt
+  dateKey  String @map("date_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  raider User @relation("RaidRaider", fields: [raiderId], references: [id])
+  victim User @relation("RaidVictim", fields: [victimId], references: [id])
+  plot   Plot @relation(fields: [plotId], references: [id])
+
+  @@index([victimId, dateKey])
+  @@index([raiderId, victimId, createdAt])
+  @@map("raid_logs")
 }

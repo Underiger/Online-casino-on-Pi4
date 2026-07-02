@@ -23,6 +23,7 @@ import { PrismaClient } from '@prisma/client';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import argon2 from 'argon2';
+import { FARM_SEED_TYPES } from '../src/config/constants.js';
 
 // 直接以 tsx 執行時補載 monorepo 根目錄 .env（prisma CLI 不會往上層找）
 if (!process.env.DATABASE_URL) {
@@ -271,6 +272,31 @@ async function main(): Promise<void> {
     },
   });
   console.log(`  - admin: "${adminUsername}" 確保存在（role=ADMIN）`);
+
+  // 6. 農場作物目錄（權威數值在 config/constants.ts FARM_SEED_TYPES，此處只是落庫鏡像）
+  for (const s of FARM_SEED_TYPES) {
+    await prisma.seedType.upsert({
+      where: { code: s.code },
+      update: {
+        name: s.name,
+        description: s.description,
+        cost: BigInt(s.cost),
+        harvest: BigInt(s.harvest),
+        growSeconds: s.growSeconds,
+        imageKey: s.imageKey,
+      },
+      create: {
+        code: s.code,
+        name: s.name,
+        description: s.description,
+        cost: BigInt(s.cost),
+        harvest: BigInt(s.harvest),
+        growSeconds: s.growSeconds,
+        imageKey: s.imageKey,
+      },
+    });
+  }
+  console.log(`  - seed_types: ${FARM_SEED_TYPES.length} 種作物 upsert 完成`);
 
   console.log('Seed 完成 ✅');
 }

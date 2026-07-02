@@ -23,6 +23,7 @@ import { registerModerationJobs } from './jobs/timed-mute.job.js';
 import { registerAbandonedRoundJob } from './jobs/abandoned-round.job.js';
 import { registerChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { registerTelegramPollJob } from './jobs/telegram-2fa-poll.job.js';
+import { registerFarmJobs } from './jobs/farm-ready.job.js';
 import { env } from './config/env.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -59,6 +60,10 @@ export async function startServer(): Promise<void> {
   // Admin 高危操作 2FA Telegram 推播——短輪詢(2s) getUpdates；
   // 未設定 TELEGRAM_BOT_TOKEN/TELEGRAM_ADMIN_CHAT_ID 時內部 no-op
   await registerTelegramPollJob(app);
+
+  // 農場成熟通知（delayed job）＋ reboot 重建（掃 GROWING plots 依 readyAt 重排；
+  // 必須在 initSocketServer 之後——farm:ready 通知經 app.io）
+  await registerFarmJobs(app);
 
   let closing = false;
   const shutdown = (signal: NodeJS.Signals): void => {

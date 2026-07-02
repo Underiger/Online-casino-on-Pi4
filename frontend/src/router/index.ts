@@ -24,6 +24,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/farm',
+    name: 'farm',
+    component: () => import('../views/FarmView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/minigames',
     name: 'minigames',
     component: () => import('../views/ComingSoonView.vue'),

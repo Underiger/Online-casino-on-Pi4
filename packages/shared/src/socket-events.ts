@@ -27,6 +27,8 @@ export const SOCKET_EVENTS = {
   CHAT_HISTORY: 'chat:history',
   ACHIEVEMENT_UNLOCKED: 'achievement:unlocked',
   DAILY_TASK_UPDATED: 'daily:task_updated',
+  FARM_READY: 'farm:ready',
+  FARM_RAIDED: 'farm:raided',
   SYSTEM_ANNOUNCEMENT: 'system:announcement',
   SERVER_FULL: 'server_full',
 } as const;
@@ -184,6 +186,22 @@ export interface DailyTaskUpdatedPayload {
   claimed: boolean;
 }
 
+/** farm:ready — 作物成熟通知（個人；BullMQ delayed job 觸發，真值來源是 DB readyAt） */
+export interface FarmReadyPayload {
+  plotIndex: number;
+  seedName: string;
+  readyAt: string; // ISO 8601
+}
+
+/** farm:raided — 被偷通知（個人；偷菜交易 commit 後即時推送） */
+export interface FarmRaidedPayload {
+  plotIndex: number;
+  seedName: string;
+  raiderName: string;
+  stolenAmount: string; // BigInt → string
+  at: string; // ISO 8601
+}
+
 /** system:announcement — 新公告推播（全服廣播） */
 export interface SystemAnnouncementPayload {
   id: string;
@@ -205,6 +223,8 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.CHAT_HISTORY]: (payload: ChatHistoryPayload) => void;
   [SOCKET_EVENTS.ACHIEVEMENT_UNLOCKED]: (payload: AchievementUnlockedPayload) => void;
   [SOCKET_EVENTS.DAILY_TASK_UPDATED]: (payload: DailyTaskUpdatedPayload) => void;
+  [SOCKET_EVENTS.FARM_READY]: (payload: FarmReadyPayload) => void;
+  [SOCKET_EVENTS.FARM_RAIDED]: (payload: FarmRaidedPayload) => void;
   [SOCKET_EVENTS.SYSTEM_ANNOUNCEMENT]: (payload: SystemAnnouncementPayload) => void;
   [SOCKET_EVENTS.SERVER_FULL]: () => void;
 }

@@ -64,6 +64,19 @@ enum TxType {
   JACKPOT
   REFUND
   GACHA
+  FARM_SEED // 農場：種子購買扣款（delta < 0）
+  FARM_HARVEST // 農場：收成入帳（delta > 0；被偷過的地按剩餘比例入帳）
+  FARM_RAID // 農場：偷菜所得入帳（delta > 0；零和轉移，victim 的損失反映在其 FARM_HARVEST 減額）
+}
+
+// 地塊狀態機（農場系統；VCS 農場技術草案 §4.1/§4.3）：
+//   EMPTY --plant--> GROWING --(farm-ready job，純通知性)--> READY --harvest--> EMPTY
+// ★ 授權判斷一律以「readyAt <= now()」為準（時間型防作弊，伺服器時鐘權威）；
+//   READY 只是通知 job 蓋的展示戳記，job 沒跑到也不影響收成/偷菜的合法性。
+enum PlotState {
+  EMPTY
+  GROWING
+  READY
 }
 
 enum CharmType {
@@ -153,6 +166,10 @@ model User {
   refreshTokens RefreshToken[]
   achievements  UserAchievement[]
   snapshots     LeaderboardSnapshot[]
+  plots         Plot[]                @relation("PlotOwner")
+  plotRaids     Plot[]                @relation("PlotRaider")
+  raidsDone     RaidLog[]             @relation("RaidRaider")
+  raidsSuffered RaidLog[]             @relation("RaidVictim")
 
   @@index([flagged])
   @@map("users")
@@ -471,4 +488,83 @@ model UserAchievement {
 
   @@unique([userId, achievementId])
   @@map("user_achievements")
+}
+
+// ─────────────────────────── 農場（VCS 第二核心子系統） ───────────────────────────
+//
+// 防作弊焦點與賭場不同（時間繞過 + 併發競態；技術草案 §1/§4）：
+//   1. 時間權威：收成/偷菜的合法性只看 DB 時間戳 vs 伺服器 now()，不信任 state 欄位
+//      的展示值、更不信任客戶端時間。
+//   2. 原子性：收成與偷菜一律「條件式 updateMany + 受影響行數判斷」，
+//      禁止先查詢再更新（雙收成/雙偷同一塊地的競態靠這條殲滅）。
+//   3. 零和轉移：偷菜者拿走收成的固定比例（raidedAmount），victim 收成時領「全額 −
+//      raidedAmount」；兩邊都走 wallet service 落 BalanceTransaction，可全帳回放。
+
+// 作物定義（權威數值在 config/constants.ts FARM_SEED_TYPES，seed 腳本 upsert 進來）
+model SeedType {
+  id          String  @id @default(cuid())
+  code        String  @unique // "GOLDEN_WHEAT"
+  name        String  @db.VarChar(40)
+  description String  @db.VarChar(200)
+  cost        BigInt // 種子成本（先掏錢製造損失厭惡；草案 §3.3）
+  harvest     BigInt // 成熟收成總值（cost × 1.5–2.5；草案 §3.3）
+  growSeconds Int     @map("grow_seconds") // 生長時間（真正的平衡旋鈕）
+  imageKey    String  @map("image_key") @db.VarChar(40) // 前端素材鍵（wheat/coin/gem）
+  enabled     Boolean @default(true)
+
+  plots Plot[]
+
+  @@map("seed_types")
+}
+
+model Plot {
+  id        String    @id @default(cuid())
+  ownerId   String    @map("owner_id")
+  plotIndex Int       @map("plot_index") // 0..FARM_PLOT_COUNT-1（列於首次種植時才建立）
+  state     PlotState @default(EMPTY)
+
+  seedTypeId String?   @map("seed_type_id")
+  plantedAt  DateTime? @map("planted_at")
+  // ★ 真值來源：計時器/通知 job 全部從本欄位重建（reboot 存活性；草案 §4.2）
+  readyAt    DateTime? @map("ready_at")
+  // 看守期＝readyAt + FARM_GUARD_SECONDS：成熟瞬間的保護窗，主人可收、外人不可偷
+  guardUntil DateTime? @map("guard_until")
+
+  // 本輪掠奪標記：一輪作物最多被偷一次（raidedById 由 NULL 條件更新搶佔，
+  // 「多人同偷只有一人得手」的原子性依賴此欄位；草案 §4.3）
+  raidedById   String? @map("raided_by_id")
+  raidedAmount BigInt  @default(0) @map("raided_amount")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner    User      @relation("PlotOwner", fields: [ownerId], references: [id])
+  seedType SeedType? @relation(fields: [seedTypeId], references: [id])
+  raidedBy User?     @relation("PlotRaider", fields: [raidedById], references: [id])
+  raidLogs RaidLog[]
+
+  @@unique([ownerId, plotIndex])
+  // reboot 重建掃描（state=GROWING）+ 掠奪目標查詢（成熟未被偷）共用
+  @@index([state, readyAt])
+  @@map("plots")
+}
+
+// 掠奪紀錄：稽核 + 保護機制判斷（每日被偷上限 / 偷竊冷卻；草案 §3.5）
+model RaidLog {
+  id       String @id @default(cuid())
+  raiderId String @map("raider_id")
+  victimId String @map("victim_id")
+  plotId   String @map("plot_id")
+  amount   BigInt // 零和轉移金額（= harvest × FARM_STEAL_RATE_PERCENT%）
+  dateKey  String @map("date_key") @db.VarChar(10) // "2026-07-02"（Asia/Taipei；每日上限判斷）
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  raider User @relation("RaidRaider", fields: [raiderId], references: [id])
+  victim User @relation("RaidVictim", fields: [victimId], references: [id])
+  plot   Plot @relation(fields: [plotId], references: [id])
+
+  @@index([victimId, dateKey]) // 每日被偷上限
+  @@index([raiderId, victimId, createdAt]) // 同對象偷竊冷卻
+  @@map("raid_logs")
 }

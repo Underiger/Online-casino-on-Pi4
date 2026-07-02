@@ -267,3 +267,88 @@ export const GACHA_DUPLICATE_REFUND: Readonly<Record<CharmRarity, number>> = {
   EPIC: 450,
   LEGENDARY: 800,
 };
+
+// ═══════════════════════════ 農場 Farm ═══════════════════════════
+//
+// VCS 第二核心子系統（技術草案 v0.2）。經濟設計核心約束（草案 §3）：
+//   種田時間效率必須「明顯低於合理賭博 EV、又高到讓人願意種」——
+//   互補型經濟（共用 wallet）下，種田是安全但龜速的本金累積、賭場是高方差娛樂。
+//
+// EV 對帳（每小時淨收益 = (harvest − cost) / 生長小時；全作物封頂 25/hr，草案 §3.4）：
+//   GOLDEN_WHEAT ：(200−100)/4   = 25/hr（草案 MVP 基準值原封不動）
+//   COIN_CROP    ：(500−250)/10  = 25/hr（同效率、少操作、被偷暴露時間更長）
+//   GEM_VEGETABLE：(1200−600)/24 = 25/hr（掛機一整天；被偷一次損失最大）
+//   被偷一次（30%）後的小麥實際效率 = (200×0.7−100)/4 = 10/hr（草案 §3.4 數值示範）。
+// 對比賭場：4 小時 spin 流水 2400、期望淨損 ~120——種田 EV 為正但封頂 25/hr，
+// 沒人能靠種田快速致富，但輸光後有兜底。互補關係成立。
+
+/** 每人地塊數（列於首次種植時才建立；plotIndex 0..N-1） */
+export const FARM_PLOT_COUNT = 4;
+
+/** 偷菜比例（%）：偷菜者拿走成熟收成的 30%，零和轉移（草案 §3.3/§3.5） */
+export const FARM_STEAL_RATE_PERCENT = 30n;
+
+/**
+ * 看守期（秒）：成熟瞬間起算的保護窗——主人可收成、外人不可偷，
+ * 防止「剛成熟瞬間被偷」的純網速競賽（草案 §3.5/§4.3 公平性）。
+ * guardUntil = readyAt + 本值，種植當下即可計算並落庫。
+ */
+export const FARM_GUARD_SECONDS = 30 * 60;
+
+/** 每日被偷上限：單一玩家每日（Asia/Taipei）最多被偷次數（草案 §3.5） */
+export const FARM_VICTIM_DAILY_RAID_LIMIT = 3;
+
+/** 偷竊冷卻（秒）：同一偷菜者對同一受害者的最小間隔（草案 §3.5） */
+export const FARM_RAID_COOLDOWN_SECONDS = 2 * 60 * 60;
+
+/** 掠奪目標清單單頁上限（成熟、出保護期、未被偷、非自己） */
+export const FARM_RAID_TARGETS_LIMIT = 20;
+
+export interface FarmSeedDef {
+  code: string;
+  name: string;
+  description: string;
+  /** 種子成本（Coin；玩家先掏錢，製造投資+等待的損失厭惡） */
+  cost: number;
+  /** 成熟收成總值（cost × 1.5–2.5；草案 §3.3 上限不可再高） */
+  harvest: number;
+  /** 生長時間（秒）——真正的平衡旋鈕 */
+  growSeconds: number;
+  /** 前端素材鍵（frontend/public/farm/crop-{imageKey}.png） */
+  imageKey: string;
+}
+
+/**
+ * 作物目錄（權威數值來源；prisma/seed.ts upsert 進 seed_types 表）。
+ * 三種作物每小時 EV 一律 25（見檔頭對帳）——差異在操作頻率與被偷暴露時間，
+ * 不在效率，避免「最優解只有一種作物」。
+ */
+export const FARM_SEED_TYPES: ReadonlyArray<FarmSeedDef> = [
+  {
+    code: 'GOLDEN_WHEAT',
+    name: '黃金小麥',
+    description: '4 小時成熟的入門作物，勤勞翻班的最愛',
+    cost: 100,
+    harvest: 200,
+    growSeconds: 4 * 3600,
+    imageKey: 'wheat',
+  },
+  {
+    code: 'COIN_CROP',
+    name: '金幣作物',
+    description: '10 小時成熟，適合上班/上課前種下',
+    cost: 250,
+    harvest: 500,
+    growSeconds: 10 * 3600,
+    imageKey: 'coin',
+  },
+  {
+    code: 'GEM_VEGETABLE',
+    name: '寶石蔬菜',
+    description: '24 小時成熟的掛機作物，收成豐厚但被偷最痛',
+    cost: 600,
+    harvest: 1200,
+    growSeconds: 24 * 3600,
+    imageKey: 'gem',
+  },
+];

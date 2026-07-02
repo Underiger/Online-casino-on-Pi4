@@ -186,11 +186,52 @@ export interface FakeSeedUser {
   muted?: boolean;
 }
 
+// ─────────────────────────── 農場（M-Farm） ───────────────────────────
+
+export interface FakeSeedType {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  cost: bigint;
+  harvest: bigint;
+  growSeconds: number;
+  imageKey: string;
+  enabled: boolean;
+}
+
+export interface FakePlot {
+  id: string;
+  ownerId: string;
+  plotIndex: number;
+  state: 'EMPTY' | 'GROWING' | 'READY';
+  seedTypeId: string | null;
+  plantedAt: Date | null;
+  readyAt: Date | null;
+  guardUntil: Date | null;
+  raidedById: string | null;
+  raidedAmount: bigint;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FakeRaidLog {
+  id: string;
+  raiderId: string;
+  victimId: string;
+  plotId: string;
+  amount: bigint;
+  dateKey: string;
+  createdAt: Date;
+}
+
 export interface FakeE2EDbOptions {
   /** 預先植入的使用者（例如 admin、預設玩家）；註冊測試可留空由 user.create 產生 */
   users?: FakeSeedUser[];
   /** 護符目錄（gift code 附贈護符時 charm.findUnique 用） */
   charms?: FakeCharm[];
+  /** 農場作物目錄；缺省為空（farm 測試自行植入，慣例 id = `seed_${code}`） */
+  seedTypes?: FakeSeedType[];
   /** Jackpot 單行表初始池量（缺省 0n，等同 migration 種子行） */
   jackpotPool?: bigint;
   /**
@@ -235,6 +276,9 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
     updatedAt: new Date(),
   };
   const jackpotHistory: FakeJackpotHistoryRow[] = [];
+  const seedTypes: FakeSeedType[] = options.seedTypes ?? [];
+  const plots: FakePlot[] = [];
+  const raidLogs: FakeRaidLog[] = [];
   let bumpsRemaining = options.bumpJackpotVersionAfterRead ?? 0;
   /** $transaction 序列化鏈（見 $transaction 檔頭 mutex 說明） */
   let txChain: Promise<unknown> = Promise.resolve();
@@ -247,6 +291,69 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
     if (where.id !== undefined) return findUserById(where.id);
     if (where.username !== undefined) return findUserByUsername(where.username);
     return undefined;
+  }
+
+  // ── 農場輔助（見 client.plot / client.seedType / client.raidLog） ──
+
+  interface PlotWhere {
+    id?: string;
+    ownerId?: string | { not: string };
+    state?: string | { in: string[] };
+    readyAt?: { lte: Date };
+    guardUntil?: { lte: Date };
+    raidedById?: string | null;
+  }
+
+  interface PlotUpdateData {
+    state?: 'EMPTY' | 'GROWING' | 'READY';
+    seedTypeId?: string | null;
+    plantedAt?: Date | null;
+    readyAt?: Date | null;
+    guardUntil?: Date | null;
+    raidedById?: string | null;
+    raidedAmount?: bigint;
+  }
+
+  function matchPlot(p: FakePlot, where?: PlotWhere): boolean {
+    if (where === undefined) return true;
+    if (where.id !== undefined && p.id !== where.id) return false;
+    if (typeof where.ownerId === 'string' && p.ownerId !== where.ownerId) return false;
+    if (
+      typeof where.ownerId === 'object' &&
+      where.ownerId !== null &&
+      p.ownerId === where.ownerId.not
+    )
+      return false;
+    if (typeof where.state === 'string' && p.state !== where.state) return false;
+    if (
+      typeof where.state === 'object' &&
+      where.state !== null &&
+      !where.state.in.includes(p.state)
+    )
+      return false;
+    if (where.readyAt?.lte !== undefined && (p.readyAt === null || p.readyAt > where.readyAt.lte))
+      return false;
+    if (
+      where.guardUntil?.lte !== undefined &&
+      (p.guardUntil === null || p.guardUntil > where.guardUntil.lte)
+    )
+      return false;
+    // raidedById: null（必須未被偷）與 'usr_x'（鎖定讀取值）語義都要支援
+    if ('raidedById' in where && p.raidedById !== where.raidedById) return false;
+    return true;
+  }
+
+  /** join 視圖：無論 include/select 一律附上（farm.service 只取用需要的欄位） */
+  function plotWithJoins(p: FakePlot) {
+    const owner = findUserById(p.ownerId);
+    const raidedBy = p.raidedById !== null ? findUserById(p.raidedById) : undefined;
+    const seedType = p.seedTypeId !== null ? seedTypes.find((s) => s.id === p.seedTypeId) : undefined;
+    return {
+      ...p,
+      seedType: seedType !== undefined ? { ...seedType } : null,
+      owner: owner !== undefined ? { id: owner.id, username: owner.username } : null,
+      raidedBy: raidedBy !== undefined ? { username: raidedBy.username } : null,
+    };
   }
 
   const client = {
@@ -647,6 +754,148 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
       },
     },
 
+    // ═══ 農場（seedType / plot / raidLog；farm.service 的條件更新語義關鍵） ═══
+    seedType: {
+      async findUnique({ where }: { where: { id?: string; code?: string } }) {
+        const row = seedTypes.find(
+          (s) =>
+            (where.id === undefined || s.id === where.id) &&
+            (where.code === undefined || s.code === where.code),
+        );
+        return row ? { ...row } : null;
+      },
+      async findMany({ where }: { where?: { enabled?: boolean }; orderBy?: unknown } = {}) {
+        return seedTypes
+          .filter((s) => where?.enabled === undefined || s.enabled === where.enabled)
+          .sort((a, b) => (a.cost < b.cost ? -1 : 1))
+          .map((s) => ({ ...s }));
+      },
+    },
+
+    plot: {
+      async upsert({
+        where,
+        create,
+      }: {
+        where: { ownerId_plotIndex: { ownerId: string; plotIndex: number } };
+        update: Record<string, unknown>;
+        create: { ownerId: string; plotIndex: number };
+      }) {
+        const { ownerId, plotIndex } = where.ownerId_plotIndex;
+        let row = plots.find((p) => p.ownerId === ownerId && p.plotIndex === plotIndex);
+        if (row === undefined) {
+          row = {
+            id: nextId('plot'),
+            ownerId: create.ownerId,
+            plotIndex: create.plotIndex,
+            state: 'EMPTY',
+            seedTypeId: null,
+            plantedAt: null,
+            readyAt: null,
+            guardUntil: null,
+            raidedById: null,
+            raidedAmount: 0n,
+            createdAt: new Date(Date.now() + seq),
+            updatedAt: new Date(Date.now() + seq),
+          };
+          plots.push(row);
+        }
+        return plotWithJoins(row);
+      },
+
+      async findUnique({ where }: { where: { id: string }; include?: unknown; select?: unknown }) {
+        const row = plots.find((p) => p.id === where.id);
+        return row ? plotWithJoins(row) : null;
+      },
+
+      async findUniqueOrThrow({
+        where,
+      }: {
+        where: { id: string };
+        include?: unknown;
+        select?: unknown;
+      }) {
+        const row = plots.find((p) => p.id === where.id);
+        if (row === undefined) throw notFound();
+        return plotWithJoins(row);
+      },
+
+      async findMany({
+        where,
+        orderBy,
+        take,
+      }: {
+        where?: PlotWhere;
+        include?: unknown;
+        select?: unknown;
+        orderBy?: { plotIndex?: string; readyAt?: string };
+        take?: number;
+      } = {}) {
+        let rows = plots.filter((p) => matchPlot(p, where));
+        if (orderBy?.plotIndex !== undefined) rows = rows.sort((a, b) => a.plotIndex - b.plotIndex);
+        if (orderBy?.readyAt !== undefined)
+          rows = rows.sort((a, b) => (a.readyAt?.getTime() ?? 0) - (b.readyAt?.getTime() ?? 0));
+        if (take !== undefined) rows = rows.slice(0, take);
+        return rows.map(plotWithJoins);
+      },
+
+      // ★ 條件檢查與變更同步完成 ＝ SQL 條件更新原子性
+      //   （偷菜搶佔 raidedById IS NULL / 收成冪等 / GROWING→READY 翻面全靠此語義）
+      async updateMany({ where, data }: { where: PlotWhere; data: PlotUpdateData }) {
+        const matched = plots.filter((p) => matchPlot(p, where));
+        for (const p of matched) {
+          if ('state' in data && data.state !== undefined) p.state = data.state;
+          if ('seedTypeId' in data) p.seedTypeId = data.seedTypeId ?? null;
+          if ('plantedAt' in data) p.plantedAt = data.plantedAt ?? null;
+          if ('readyAt' in data) p.readyAt = data.readyAt ?? null;
+          if ('guardUntil' in data) p.guardUntil = data.guardUntil ?? null;
+          if ('raidedById' in data) p.raidedById = data.raidedById ?? null;
+          if ('raidedAmount' in data && data.raidedAmount !== undefined)
+            p.raidedAmount = data.raidedAmount;
+          p.updatedAt = new Date();
+        }
+        return { count: matched.length };
+      },
+    },
+
+    raidLog: {
+      async create({
+        data,
+      }: {
+        data: Omit<FakeRaidLog, 'id' | 'createdAt'> & { createdAt?: Date };
+      }) {
+        // farm.service 會明確帶 createdAt（服務時鐘）；缺席時退回真實時鐘
+        const row: FakeRaidLog = {
+          id: nextId('raid'),
+          createdAt: new Date(Date.now() + seq),
+          ...data,
+        };
+        raidLogs.push(row);
+        return { ...row };
+      },
+      async findFirst({
+        where,
+      }: {
+        where: { raiderId?: string; victimId?: string; createdAt?: { gt: Date } };
+        select?: unknown;
+      }) {
+        const row = raidLogs.find(
+          (r) =>
+            (where.raiderId === undefined || r.raiderId === where.raiderId) &&
+            (where.victimId === undefined || r.victimId === where.victimId) &&
+            (where.createdAt?.gt === undefined || r.createdAt > where.createdAt.gt),
+        );
+        return row ? { ...row } : null;
+      },
+      async count({ where }: { where: { victimId?: string; dateKey?: string } }) {
+        return raidLogs.filter(
+          (r) =>
+            (where.victimId === undefined || r.victimId === where.victimId) &&
+            (where.dateKey === undefined || r.dateKey === where.dateKey),
+        ).length;
+      },
+    },
+
     // ─────────────────────────── $transaction（快照 + 還原 ＝ 回滾；mutex 序列化） ───────────────────────────
     //
     // ★ mutex：真 PG 以列鎖序列化衝突交易；本 fake 的全域陣列快照在「併發」下
@@ -668,6 +917,8 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
           illegalPacketLogs,
           jackpotRow,
           jackpotHistory,
+          plots,
+          raidLogs,
         });
         try {
           return await fn(client);
@@ -684,6 +935,8 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
           illegalPacketLogs.splice(0, illegalPacketLogs.length, ...snapshot.illegalPacketLogs);
           Object.assign(jackpotRow, snapshot.jackpotRow);
           jackpotHistory.splice(0, jackpotHistory.length, ...snapshot.jackpotHistory);
+          plots.splice(0, plots.length, ...snapshot.plots);
+          raidLogs.splice(0, raidLogs.length, ...snapshot.raidLogs);
           throw err;
         }
       });
@@ -711,6 +964,9 @@ export function createE2EDb(options: FakeE2EDbOptions = {}) {
     illegalPacketLogs,
     jackpotRow,
     jackpotHistory,
+    seedTypes,
+    plots,
+    raidLogs,
   };
 }
 

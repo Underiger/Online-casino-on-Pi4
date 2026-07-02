@@ -88,6 +88,36 @@ export class OptimisticLockError extends AppError {
   }
 }
 
+// ── 農場（時間型防作弊 + 掠奪保護機制；VCS 農場技術草案 §3.5/§4.1） ──
+
+/** 收成/偷菜請求早於 readyAt（時間繞過攻擊或前端時鐘偏差）；一律以伺服器時鐘為準 */
+export class FarmNotRipeError extends AppError {
+  constructor(message = '作物尚未成熟') {
+    super(message, 422, 'FARM_NOT_RIPE');
+  }
+}
+
+/** 看守期內的偷菜嘗試（成熟瞬間保護窗，防純網速競賽） */
+export class FarmGuardActiveError extends AppError {
+  constructor(message = '這塊地還在看守期，無法偷取') {
+    super(message, 403, 'FARM_GUARD_ACTIVE');
+  }
+}
+
+/** 同一偷菜者對同一受害者的冷卻時間未過 */
+export class FarmRaidCooldownError extends AppError {
+  constructor(message = '對這位玩家的偷菜冷卻中，請稍後再試') {
+    super(message, 403, 'FARM_RAID_COOLDOWN');
+  }
+}
+
+/** 受害者今日被偷次數已達上限（防大佬輾壓） */
+export class FarmRaidLimitError extends AppError {
+  constructor(message = '對方今日已被偷到上限，放過他吧') {
+    super(message, 403, 'FARM_RAID_LIMIT');
+  }
+}
+
 // ── 5xx ────────────────────────────────────────────────────────
 
 export class InternalError extends AppError {

@@ -23,6 +23,8 @@ export const SOCKET_EVENTS = {
   CHAT_HISTORY: 'chat:history',
   ACHIEVEMENT_UNLOCKED: 'achievement:unlocked',
   DAILY_TASK_UPDATED: 'daily:task_updated',
+  FARM_READY: 'farm:ready',
+  FARM_RAIDED: 'farm:raided',
 
   // Server → Client（全服廣播）
   ROULETTE_PHASE: 'roulette:phase',

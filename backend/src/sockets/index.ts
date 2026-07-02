@@ -124,6 +124,9 @@ export function initSocketServer(
     gauge.publish();
 
     const { userId } = socket.data as SocketSessionData;
+    // 個人通知（daily / achievement / farm）的路由前提：每條連線加入自己的 user room。
+    // roulette gateway 也會 join 同名 room（冪等）——但個人通知不應依賴輪盤模組是否啟用。
+    void socket.join(`user:${userId}`);
     app.log.info(
       { socketId: socket.id, userId, transport: socket.conn.transport.name },
       'socket: connected',

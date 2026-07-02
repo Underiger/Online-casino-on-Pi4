@@ -24,6 +24,16 @@ export enum TxType {
   JACKPOT = 'JACKPOT',
   REFUND = 'REFUND',
   GACHA = 'GACHA',
+  FARM_SEED = 'FARM_SEED',
+  FARM_HARVEST = 'FARM_HARVEST',
+  FARM_RAID = 'FARM_RAID',
+}
+
+/** 農場地塊狀態機（EMPTY → GROWING → READY → 收成回 EMPTY） */
+export enum PlotState {
+  EMPTY = 'EMPTY',
+  GROWING = 'GROWING',
+  READY = 'READY',
 }
 
 export enum CharmType {
