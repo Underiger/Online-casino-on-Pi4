@@ -68,6 +68,14 @@ export const HIGH_LOW_MAX_STREAK = 5;
 export const BLACKJACK_MIN_BET = 10;
 export const BLACKJACK_MAX_BET = 1_000;
 
+// ─────────────────────────── 麻將聽牌挑戰 ───────────────────────────
+
+export const MAHJONG_MIN_BET = 10;
+export const MAHJONG_MAX_BET = 1_000;
+
+/** bet 後翻開的牌牆抽牌數（賠率隨每手牌動態攤開，無固定倍率表） */
+export const MAHJONG_DRAW_COUNT = 8;
+
 // ─────────────────────────── 聊天室 ───────────────────────────
 
 /** 聊天訊息最大字元數 */

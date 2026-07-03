@@ -50,28 +50,19 @@
           </select>
         </template>
 
-        <!-- 下注紀錄額外篩選 -->
+        <!-- 下注紀錄額外篩選（選項由 @casino/shared GameType 派生，新遊戲上線自動出現） -->
         <template v-if="activeTab === 'bets'">
-          <select v-model="filterGameType" class="form-control" style="max-width: 120px">
+          <select v-model="filterGameType" class="form-control" style="max-width: 140px">
             <option value="">全部遊戲</option>
-            <option value="SLOT">老虎機</option>
-            <option value="ROULETTE">輪盤</option>
+            <option v-for="g in gameTypeOptions" :key="g" :value="g">{{ gameTypeLabel(g) }}</option>
           </select>
         </template>
 
-        <!-- 交易紀錄額外篩選 -->
+        <!-- 交易紀錄額外篩選（選項由 @casino/shared TxType 派生） -->
         <template v-if="activeTab === 'transactions'">
-          <select v-model="filterTxType" class="form-control" style="max-width: 150px">
+          <select v-model="filterTxType" class="form-control" style="max-width: 160px">
             <option value="">全部類型</option>
-            <option value="BET">下注</option>
-            <option value="PAYOUT">派彩</option>
-            <option value="DAILY_REWARD">每日獎勵</option>
-            <option value="TASK_REWARD">任務獎勵</option>
-            <option value="GIFT_CODE">禮物碼</option>
-            <option value="ADMIN_ADJUST">管理員調整</option>
-            <option value="JACKPOT">Jackpot</option>
-            <option value="REFUND">退款</option>
-            <option value="GACHA">扭蛋</option>
+            <option v-for="t in txTypeOptions" :key="t" :value="t">{{ txTypeLabel(t) }}</option>
           </select>
         </template>
 
@@ -138,7 +129,7 @@
                   {{ r.userId.slice(0, 8) }}…
                 </td>
                 <td>
-                  <span class="badge badge--gray">{{ r.gameType }}</span>
+                  <span class="badge badge--gray">{{ gameTypeLabel(r.gameType) }}</span>
                 </td>
                 <td>{{ r.amount }}</td>
                 <td :style="{ color: BigInt(r.payout) > BigInt(r.amount) ? '#16a34a' : '#94a3b8' }">
@@ -179,7 +170,7 @@
                   {{ r.userId.slice(0, 8) }}…
                 </td>
                 <td>
-                  <span class="badge" :class="txTypeBadge(r.type)">{{ r.type }}</span>
+                  <span class="badge" :class="txTypeBadge(r.type)">{{ txTypeLabel(r.type) }}</span>
                 </td>
                 <td :style="{ color: r.delta.startsWith('-') ? '#dc2626' : '#16a34a', fontWeight: '600' }">
                   {{ r.delta.startsWith('-') ? r.delta : '+' + r.delta }}
@@ -206,6 +197,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { GameType, TxType } from '@casino/shared';
 import { useUiStore } from '../stores/ui';
 import {
   apiListLoginRecords,
@@ -259,9 +251,50 @@ function loginResultLabel(result: string): string {
   return map[result] ?? result;
 }
 
+// 選項清單由 shared enum 派生——新增遊戲/交易類型時後台自動跟上，不再手抄清單
+const gameTypeOptions = Object.values(GameType);
+const txTypeOptions = Object.values(TxType);
+
+const GAME_TYPE_LABEL: Record<string, string> = {
+  SLOT: '老虎機',
+  ROULETTE: '輪盤',
+  DRAGON_GATE: '射龍門',
+  HIGH_LOW: '猜高低',
+  BLACKJACK: '二十一點',
+  MAHJONG: '麻將聽牌',
+};
+
+const TX_TYPE_LABEL: Record<string, string> = {
+  BET: '下注',
+  PAYOUT: '派彩',
+  DAILY_REWARD: '每日獎勵',
+  TASK_REWARD: '任務獎勵',
+  GIFT_CODE: '禮物碼',
+  ADMIN_ADJUST: '管理員調整',
+  JACKPOT: 'Jackpot',
+  REFUND: '退款',
+  GACHA: '扭蛋',
+  FARM_SEED: '農場種子',
+  FARM_HARVEST: '農場收成',
+  FARM_RAID: '農場偷菜',
+};
+
+/** 未知值退回原代碼——就算 label 表漏更新，資料仍可辨識、不會顯示成空白 */
+function gameTypeLabel(type: string): string {
+  return GAME_TYPE_LABEL[type] ?? type;
+}
+
+function txTypeLabel(type: string): string {
+  return TX_TYPE_LABEL[type] ?? type;
+}
+
 function txTypeBadge(type: string): string {
-  if (['BET', 'ADMIN_ADJUST'].includes(type)) return 'badge--red';
-  if (['PAYOUT', 'DAILY_REWARD', 'TASK_REWARD', 'GIFT_CODE', 'JACKPOT'].includes(type)) return 'badge--green';
+  if (['BET', 'ADMIN_ADJUST', 'FARM_SEED'].includes(type)) return 'badge--red';
+  if (
+    ['PAYOUT', 'DAILY_REWARD', 'TASK_REWARD', 'GIFT_CODE', 'JACKPOT', 'FARM_HARVEST', 'FARM_RAID'].includes(type)
+  ) {
+    return 'badge--green';
+  }
   return 'badge--gray';
 }
 

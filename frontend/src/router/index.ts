@@ -73,6 +73,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/mahjong',
+    name: 'mahjong',
+    component: () => import('../views/MahjongView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/gacha',
     name: 'gacha',
     component: () => import('../views/GachaView.vue'),

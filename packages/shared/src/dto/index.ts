@@ -16,3 +16,4 @@ export * from './dragon-gate.dto';
 export * from './high-low.dto';
 export * from './blackjack.dto';
 export * from './farm.dto';
+export * from './mahjong.dto';

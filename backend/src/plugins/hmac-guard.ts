@@ -35,7 +35,7 @@ import { createIllegalPacketService } from '../modules/audit/illegal-packet.serv
 
 export interface SignedRouteSpec {
   /** canonical 的 gameType 欄位 */
-  gameType: 'SLOT' | 'ROULETTE' | 'DRAGON_GATE' | 'HIGH_LOW' | 'BLACKJACK';
+  gameType: 'SLOT' | 'ROULETTE' | 'DRAGON_GATE' | 'HIGH_LOW' | 'BLACKJACK' | 'MAHJONG';
   /** 從已解析 body 萃取 betAmount（canonical 完整性綁定的注額） */
   betAmount: (body: unknown) => number;
 }
@@ -80,6 +80,10 @@ export const DEFAULT_SIGNED_ROUTES: Record<string, SignedRouteSpec> = {
   },
   'POST /api/blackjack/deal': {
     gameType: 'BLACKJACK',
+    betAmount: (body) => Number((body as { betAmount?: unknown } | null)?.betAmount),
+  },
+  'POST /api/mahjong/bet': {
+    gameType: 'MAHJONG',
     betAmount: (body) => Number((body as { betAmount?: unknown } | null)?.betAmount),
   },
 };

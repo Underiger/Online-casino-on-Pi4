@@ -32,6 +32,7 @@
 | H. 部署、測試與發布 | M25–M28 | 4.0 | ✅ 完成（2026-06-14，v1.0.0 發布） |
 | **合計** | **28 個** | **35.5** | **✅ 全部完成** |
 | I. Phase 2／莊家 vs 閒家（擴充，未計入合計） | M29 | — | ✅ 完成（2026-06-20） |
+| J. Phase 2／麻將單人先行版（擴充，未計入合計） | M30 | — | ✅ 完成（2026-07-03） |
 
 ## 2. 拆分表
 
@@ -66,6 +67,7 @@
 | M27 | 整合測試與安全演練 | M26 | 1.5 | 整合測試：spin/輪盤/兌換全流程、雙花競態、Jackpot 並發派彩；`scripts/security-attacks/` 五類攻擊向量腳本（重放/seq 倒退/簽章竄改/逾時下注/聊天洗頻）— 全數被拒且落 IllegalPacketLog；覆蓋率報告（整體 Stmts 77.5%，安全模組 100%） | ✅ 2026-06-14 |
 | M28 | 文件定稿與 v1.0 發布 | M27 | 0.5 | README 終稿、`docs/04_API_SPEC.md` 校訂（錯誤碼修正）、`PROJECT_STATE.md` 結算、需求對照表、打 tag `v1.0.0`；★2026-06-16 後續修補：聊天自動禁言/限時解除 + esbuild/ws/form-data CVE 修補 + `scripts/smoke-test.js` 部署冒煙腳本 | ✅ 2026-06-14（後續修補 06-16） |
 | **M29** | **★莊家 vs 閒家新遊戲（射龍門/High-Low/Blackjack）** | M06, M07, M11, M15 | — | 沿用 Slot 已驗證模式（HTTP 同步 + 單一 Prisma 交易 + wallet + HMAC + 限流 + 異常偵測）；射龍門 `open`/`bet`（GETDEL 原子單步，含 Monte Carlo 抓出的賠率校準修正）、High-Low `deal/guess/continue/cash-out`、Blackjack `deal/hit/stand/double`（皆透過新增的 `security/round-lock.ts` 序列化）；新增 `jobs/abandoned-round.job.ts`（孤兒回合清理，明確不用 REFUND）、`shared/cards.ts`（標準撲克牌 + 洗牌）；`GameType` enum 純新增 3 值，**不新增任何 Prisma model**；新增測試 141 條（總計 531 條全綠）；射龍門已有完整前端，High-Low/Blackjack 前端與真實撲克牌圖片素材於後續 2 個 commit 補齊 | ✅ 2026-06-20 |
+| **M30** | **★麻將聽牌挑戰（第三類「麻將」單人先行版）** | M06, M07, M29 | — | 麻將規則引擎（胡牌判定/聽牌/台數，未來多人麻將地基）+ 射龍門同款 open→bet 單步原子金流（GETDEL claim，無 round-lock/孤兒回合需求）；賠率逐手動態定價鎖定每手 EV=92%（換手重開無利可圖）；`GameType` 純新增 MAHJONG 列舉；同批修復管理後台紀錄查詢與 casino/farm 脫鉤（query schema 改 z.nativeEnum 派生 + admin 前端下拉由 shared enum 派生）；新增測試 58 條 | ✅ 2026-07-03 |
 
 > ＊M18/M19 在 `docs/PROJECT_STATE.md` 並無獨立完成章節（僅見於需求對照表，標記 ✅），
 > 日期依相鄰里程碑時序（M14/M16/M20 均為 2026-06-13）推估，非逐章節原文確認。

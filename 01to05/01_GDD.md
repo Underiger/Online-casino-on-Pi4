@@ -4,7 +4,10 @@
 
 > Phase 1（老虎機 + 輪盤 + 社交/每日/管理後台，M01–M28）已於 2026-06-14 發布 v1.0.0。
 > Phase 2 規劃四大類新遊戲擴充：①莊家 vs 閒家（射龍門/High-Low/Blackjack，M29 已完成，見 §8）
-> ②多人桌局 PvP ③麻將 ④Solitaire——②③④尚未排入 Milestone。
+> ②多人桌局 PvP ③麻將 ④Solitaire。③麻將已以「聽牌挑戰」單人先行版落地（M30，
+> 2026-07-03；規則引擎＝未來多人麻將地基，玩法沿用射龍門 open→bet 單步模式，賠率逐手
+> 動態定價鎖定 92% EV，詳見 docs/PROJECT_STATE.md M30 與 04_API_SPEC.md §3.17）；
+> 完整多人麻將與 ②④ 尚未排入 Milestone。
 
 ---
 

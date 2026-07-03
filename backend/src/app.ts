@@ -36,6 +36,7 @@ import monitorRoutes from './modules/monitor/monitor.routes.js';
 import dragonGateRoutes from './modules/dragon-gate/dragon-gate.routes.js';
 import highLowRoutes from './modules/high-low/high-low.routes.js';
 import blackjackRoutes from './modules/blackjack/blackjack.routes.js';
+import mahjongRoutes from './modules/mahjong/mahjong.routes.js';
 import farmRoutes from './modules/farm/farm.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -114,6 +115,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       'POST /api/dragon-gate/bet': { capacity: 5, refillPerSec: 2 },
       'POST /api/high-low/deal': { capacity: 5, refillPerSec: 2 },
       'POST /api/blackjack/deal': { capacity: 5, refillPerSec: 2 },
+      'POST /api/mahjong/bet': { capacity: 5, refillPerSec: 2 },
       // 扭蛋抽取：花 Coin 抽護符，收緊節奏防連點濫抽（十連算單次請求）
       'POST /api/gacha/pull': { capacity: 5, refillPerSec: 2 },
       // 農場：種地/收成/偷菜都是低頻操作，收緊防腳本連打（偷菜競態由 DB 條件更新仲裁，
@@ -163,6 +165,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(highLowRoutes, { prefix: '/api/high-low' });
   // Blackjack：莊家 vs 閒家第三款（動作最多，沿用同一套 round-lock pattern）
   await app.register(blackjackRoutes, { prefix: '/api/blackjack' });
+  // 麻將聽牌挑戰：第三類「麻將」單人先行版（射龍門同款 open→bet 單步原子模式）
+  await app.register(mahjongRoutes, { prefix: '/api/mahjong' });
   // 農場：VCS 第二核心子系統（時間型狀態機 + 掠奪併發控制；與賭場共用 wallet）
   await app.register(farmRoutes, { prefix: '/api/farm' });
 

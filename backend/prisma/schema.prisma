@@ -52,6 +52,7 @@ enum GameType {
   DRAGON_GATE
   HIGH_LOW
   BLACKJACK
+  MAHJONG
 }
 
 enum TxType {

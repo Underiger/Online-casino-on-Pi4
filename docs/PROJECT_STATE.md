@@ -2,6 +2,59 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
+## M30：麻將聽牌挑戰——第三類「麻將」單人先行版（2026-07-03）
+
+四大類新遊戲擴充的第三類「麻將」原規劃需要房間/座位系統（第二類 PvP 的前置）故排最後；
+本里程碑改以「單人先行版」提前落地：完整實作麻將**規則引擎**（胡牌判定/聽牌計算/台數
+計算，`backend/src/modules/mahjong/{tiles,win,generator}.ts` 純函式，即為未來多人麻將的
+地基），玩法上沿用射龍門已驗證的「先攤賠率、後單步下注」模式，**刻意不引入**多步驟金流：
+
+- **玩法**：`open` 發一副保證聽牌的台灣 16 張手牌（完整胡牌手隨機抽走一張構造，可能
+  一洞或多洞聽）＋攤開每洞賠率 → `bet`（HMAC）翻開 open 當下已封存的 8 張牌牆抽牌，
+  摸中任一洞即自摸胡牌，派彩 = 注額 × 該洞倍率。
+- **賠率逐手動態定價**：超幾何 8 抽中率 × 台數權重（碰碰胡/混一色/清一色/字一色/大小
+  三元/三四五暗刻，高點法取最大；自摸門清恆成立折入底分），縮放至**每手 EV 恰為 92%**
+  （捨去/封頂只會更低）。因此「換一手」重開不改變期望值——玩家挑手下注不構成漏洞；
+  台數的意義是同手內各洞的相對賠率差。推導凍結於 `config/constants.ts` 麻將章節。
+- **金流安全**：與射龍門同款 GETDEL 原子 claim + 單一 Prisma 交易（BetRecord → debit →
+  條件 credit）。整回合唯一動錢操作是單步的——沒有「卡在半路」的狀態，**不需要
+  round-lock、不需要孤兒回合清理**，斷線/併發重放結構上無利可圖。
+- **Monte Carlo 又抓到一個真實問題**（延續 M29 射龍門的教訓）：抽樣路初版 RTP 高出
+  ~5pp，追查後是**測試用 LCG + 取模**的低位元偏差餵壞 Fisher-Yates（LCG bit k 週期僅
+  2^k），非生產碼問題（生產碼走 csprng）；測試 rng 換 mulberry32 後「解析 EV 路」與
+  「全管線抽樣路」雙路收斂 92%。教訓：**決定性測試的 rng 品質也是被測物的一部分**。
+- Prisma `GameType` 純新增 `MAHJONG` 列舉值（migration `20260703_add_mahjong_gametype`），
+  不新增任何 model；HMAC signedRoutes / rate-limit routeRules 各加一條 `/api/mahjong/bet`。
+- 前端：`MahjongView.vue`（逐張翻牌動畫 + 每洞台數/倍率攤牌）+ `stores/mahjong.ts` +
+  `components/common/MahjongTile.vue`（純 CSS 牌面，無圖片素材依賴）+ 大廳入口。
+- 測試：新增 58 條（胡牌/聽牌/台數 fixture 18、產生器不變量 5、定價與結算 10、service
+  狀態機與 GETDEL 防重 13、路由整合 7、RTP 雙路 2、admin 紀錄 schema 對齊回歸 3），
+  總計 678 條全綠；唯一失敗檔仍為與本次無關的既有環境性 socket-connection 測試
+  （乾淨 tree 上同樣失敗，已驗證）。
+
+## M30 同批修補：管理後台紀錄查詢與 casino/farm 脫鉤（2026-07-03）
+
+使用者回報管理後台沒有跟上賭場與農場的演進。追查根因：`record.types.ts` 的查詢 schema
+**手抄列舉字面量清單**，M29 三款新遊戲與農場上線時無人記得回頭同步——
+
+- 後端：`BetRecordQuerySchema.gameType` 只允許 `['SLOT','ROULETTE']`，用 DRAGON_GATE/
+  HIGH_LOW/BLACKJACK 篩選直接 400；`TxRecordQuerySchema.type` 缺 `GACHA` 與 `FARM_*`
+  三類，這些交易在後台**查不到**。修法不是補清單，而是消滅清單：一律改
+  `z.nativeEnum(@prisma/client)`，單一真值來源 = schema.prisma，永不再漂移；並新增
+  「schema 接受集合 ≡ Prisma enum」逐值回歸測試（含未知值仍拒絕）。
+- 前端（admin）：`RecordsView.vue` 遊戲/交易類型下拉同樣手抄——改由 `@casino/shared`
+  enum 派生選項 + 中文標籤表（未知值退回原代碼顯示，label 表漏更新也不會空白）；
+  農場三類交易補上紅/綠帳目配色。
+- 附帶把 M29 後就缺席的 PROJECT_STATE 農場條目補上（見下方農場段落）。
+
+## 農場系統 MVP（2026-07-03，補記）
+
+VCS 第二核心子系統（時間型狀態機 + 掠奪併發控制，與賭場共用 wallet）已於同日稍早發布，
+完整實作紀要見 `docs/09_FARM_MODULE.md` 與 commit f4174cb（當時未同步本檔，此為補記）：
+Prisma 三表 SeedType/Plot/RaidLog、`/api/farm` 種地/收成/偷菜（伺服器時鐘權威、條件式
+原子更新、零和轉移走 wallet）、看守期/冷卻/每日被偷上限、BullMQ reboot 存活性、
+FarmView 前端與 Socket 通知、33 支測試（含 HTTP 級併發競態與 EV Monte Carlo）。
+
 ## M29：莊家 vs 閒家新遊戲——射龍門 / High-Low / Blackjack（2026-06-20）
 
 使用者規劃四大類新遊戲擴充（其餘三類：多人桌局 PvP、麻將、Solitaire 留待後續），本里程碑

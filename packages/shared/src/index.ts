@@ -12,4 +12,5 @@ export * from './enums';
 export * from './constants';
 export * from './socket-events';
 export * from './cards';
+export * from './tiles';
 export * from './dto/index';

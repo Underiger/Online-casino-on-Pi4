@@ -227,3 +227,39 @@ describe('record.service：listTransactions', () => {
     expect(res.data[0]!.memo).toBeNull();
   });
 });
+
+// ═════════════════════════ 篩選 schema 與 Prisma enum 對齊 ══════════════════════
+//
+// 回歸防護：舊版 query schema 手抄字面量清單，M29 三款新遊戲與農場上線後漂移
+// （DRAGON_GATE/HIGH_LOW/BLACKJACK 篩選直接 400、GACHA/FARM_* 查不到）。
+// 改為 z.nativeEnum(@prisma/client) 後，這裡逐值驗證「schema 接受的集合 = Prisma enum」。
+
+describe('record.types：查詢 schema 與 Prisma enum 對齊', () => {
+  it('BetRecordQuerySchema 接受所有 GameType（含 MAHJONG）', async () => {
+    const { BetRecordQuerySchema } = await import('../../src/modules/record/record.types.js');
+    const { GameType } = await import('@prisma/client');
+    for (const g of Object.values(GameType)) {
+      expect(BetRecordQuerySchema.safeParse({ gameType: g }).success).toBe(true);
+    }
+    expect(Object.values(GameType)).toContain('MAHJONG');
+  });
+
+  it('TxRecordQuerySchema 接受所有 TxType（含 GACHA 與 FARM_*）', async () => {
+    const { TxRecordQuerySchema } = await import('../../src/modules/record/record.types.js');
+    const { TxType } = await import('@prisma/client');
+    for (const t of Object.values(TxType)) {
+      expect(TxRecordQuerySchema.safeParse({ type: t }).success).toBe(true);
+    }
+    for (const required of ['GACHA', 'FARM_SEED', 'FARM_HARVEST', 'FARM_RAID']) {
+      expect(Object.values(TxType) as string[]).toContain(required);
+    }
+  });
+
+  it('未知列舉值仍被拒絕（不是放寬成任意字串）', async () => {
+    const { BetRecordQuerySchema, TxRecordQuerySchema } = await import(
+      '../../src/modules/record/record.types.js'
+    );
+    expect(BetRecordQuerySchema.safeParse({ gameType: 'PACHINKO' }).success).toBe(false);
+    expect(TxRecordQuerySchema.safeParse({ type: 'BRIBE' }).success).toBe(false);
+  });
+});

@@ -11,6 +11,7 @@ export enum GameType {
   DRAGON_GATE = 'DRAGON_GATE',
   HIGH_LOW = 'HIGH_LOW',
   BLACKJACK = 'BLACKJACK',
+  MAHJONG = 'MAHJONG',
 }
 
 /** BalanceTransaction.type — 每筆餘額異動的原因分類 */

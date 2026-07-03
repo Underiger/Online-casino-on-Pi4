@@ -27,6 +27,7 @@
    - [3.14 Dragon Gate（射龍門）](#314-dragon-gate射龍門)
    - [3.15 High-Low（猜高低）](#315-high-low猜高低)
    - [3.16 Blackjack（二十一點）](#316-blackjack二十一點)
+   - [3.17 Mahjong（麻將聽牌挑戰）](#317-mahjong麻將聽牌挑戰)
 4. [Socket.IO 事件規格](#4-socketio-事件規格)
    - [4.1 連線與握手](#41-連線與握手)
    - [4.2 Client → Server 事件](#42-client--server-事件)
@@ -175,6 +176,8 @@ HMAC 金鑰（`hmacKey`）在登入/refresh 回應中以 base64url 格式下發�
 | Blackjack | POST | `/api/blackjack/hit` | ✓ | ✗ | 要牌 |
 | Blackjack | POST | `/api/blackjack/stand` | ✓ | ✗ | 停牌（進莊家流程並結算） |
 | Blackjack | POST | `/api/blackjack/double` | ✓ | ✗ | 加倍 |
+| Mahjong | POST | `/api/mahjong/open` | ✓ | ✗ | 發聽牌手 + 攤每洞賠率（不動錢） |
+| Mahjong | POST | `/api/mahjong/bet` | ✓ | ✓ | 下注翻牌牆並結算 |
 
 > **認證**欄：`✓` = 玩家 JWT、`Admin` = Admin JWT + role 驗證、`✗` = 公開。
 
@@ -1062,6 +1065,78 @@ DELETE 回 `204`，其他回 `200`（型別：`AnnouncementItem`）或 `201`。
 | 409 | `CONFLICT` | 已有進行中回合（deal）/ 加倍條件不符（已超過兩張或已加倍過） |
 | 409 | `OPTIMISTIC_LOCK_FAILED` | 同一回合有其他動作正在處理中（併發保護） |
 | 422 | `INSUFFICIENT_BALANCE` | 餘額不足（deal 首注或 double 第二注） |
+
+---
+
+### 3.17 Mahjong（麻將聽牌挑戰）
+
+第三類「麻將」的單人先行版（規則引擎——胡牌判定/聽牌計算/台數——為未來多人麻將地基）。
+台灣 16 張規則（5 面子 + 1 對眼，無花牌、無吃碰槓）：`open` 發一副**保證聽牌**的 16 張
+手牌（由完整胡牌手隨機抽走一張構造，可能一洞或多洞聽），並攤開每個洞的賠率；`bet` 依序
+翻開 open 當下就已封存的 8 張牌牆抽牌，摸中任一洞即自摸胡牌，派彩 = 注額 × 該洞倍率。
+
+賠率為**逐手動態定價**（射龍門「先攤賠率再下注」模式的推廣）：以超幾何分布算出 8 抽中率，
+台數（碰碰胡/清一色/字一色/大小三元/暗刻檔位…，自摸門清恆成立折入底分）作為同手內各洞的
+相對權重，縮放至每手期望值恰為目標 RTP（92%，捨去與封頂只會更低）。因此「換一手」重開
+不改變期望值，挑手牌下注不構成漏洞。與射龍門同款單步原子結算（Redis GETDEL claim +
+單一 Prisma 交易），沒有多步驟金流，不需要 round-lock 也不需要孤兒回合清理。
+
+#### POST `/api/mahjong/open`
+
+| 項目 | 說明 |
+|---|---|
+| 認證 | JWT（玩家） |
+| HMAC | 不需要（不動錢） |
+
+不需要 Request Body。
+
+**Response** `200`（型別：`MahjongOpenRes`）
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `roundId` | string | 下注時需帶回 |
+| `hand` | `TileKind[16]` | 聽牌手（依萬→筒→條→字排序） |
+| `waits` | `MahjongWaitQuote[]` | 每洞報價：`{ kind, outs, tai, breakdown, multiplier }` |
+| `drawCount` | number | 牌牆抽牌數（固定 8） |
+| `expiresIn` | number | 報價有效秒數（120；逾時需重新 open） |
+
+---
+
+#### POST `/api/mahjong/bet`
+
+| 項目 | 說明 |
+|---|---|
+| 認證 | JWT（玩家） |
+| HMAC | **必須** |
+
+**Request Body**（型別：`MahjongBetReq`）
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `roundId` | string | 對應 `open` 回應的 roundId |
+| `betAmount` | number | 10~1000 之間的整數 |
+
+**HMAC canonical string**：`${userId}|MAHJONG|${betAmount}|${nonce}|${timestamp}`
+
+**Response** `200`（型別：`MahjongBetRes`）
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `betRecordId` | string | |
+| `outcome` | `'WIN' \| 'LOSE'` | |
+| `revealed` | `TileKind[]` | 依序翻開的牆牌（WIN 時止於中獎張） |
+| `hitIndex` | `number \| null` | 中獎張於 revealed 的位置 |
+| `hitQuote` | `MahjongWaitQuote \| null` | 中獎洞的完整報價（含台數組成） |
+| `betAmount` | number | |
+| `payout` | number | floor(betAmount × multiplier)；0 表示未中 |
+| `newBalance` | string | |
+| `hand` | `TileKind[16]` | 回顯手牌（結算畫面用） |
+| `waits` | `MahjongWaitQuote[]` | 回顯全部報價 |
+
+**錯誤碼**
+| HTTP | code | 說明 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | 注額不合法 |
+| 404 | `NOT_FOUND` | 回合不存在、已結算或報價逾時（含併發重複下注的第二個請求） |
+| 422 | `INSUFFICIENT_BALANCE` | 餘額不足 |
+| 400 | `ERR_BAD_SIGNATURE` / `ERR_NONCE_REPLAY` / `ERR_SEQ_REGRESSION` / `ERR_STALE_REQUEST` | HMAC 驗證失敗 |
 
 ---
 

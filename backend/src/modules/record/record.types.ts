@@ -3,7 +3,12 @@
  *
  * 涵蓋三類紀錄：LoginLog / BetRecord / BalanceTransaction。
  * 分頁回應格式統一：{ data, total, page, totalPages }。
+ *
+ * 篩選列舉一律 z.nativeEnum(@prisma/client)——單一真值來源是 schema.prisma。
+ * 舊版手抄字面量清單曾在 M29/農場上線後漂移（DRAGON_GATE/HIGH_LOW/BLACKJACK 篩選
+ * 直接 400、GACHA/FARM_* 交易類型查不到），此缺口不允許再發生。
  */
+import { GameType, LoginResult, TxType } from '@prisma/client';
 import { z } from 'zod';
 
 // ─── 共用分頁基底 ─────────────────────────────────────────────────────────────
@@ -17,7 +22,7 @@ const pageBase = {
 
 export const LoginRecordQuerySchema = z.object({
   userId: z.string().optional(),
-  result: z.enum(['SUCCESS', 'WRONG_PASSWORD', 'BANNED', 'TOTP_FAILED']).optional(),
+  result: z.nativeEnum(LoginResult).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   ...pageBase,
@@ -38,7 +43,7 @@ export interface LoginLogItem {
 
 export const BetRecordQuerySchema = z.object({
   userId: z.string().optional(),
-  gameType: z.enum(['SLOT', 'ROULETTE']).optional(),
+  gameType: z.nativeEnum(GameType).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   ...pageBase,
@@ -60,9 +65,7 @@ export interface BetRecordItem {
 
 export const TxRecordQuerySchema = z.object({
   userId: z.string().optional(),
-  type: z
-    .enum(['BET', 'PAYOUT', 'DAILY_REWARD', 'TASK_REWARD', 'GIFT_CODE', 'ADMIN_ADJUST', 'JACKPOT', 'REFUND'])
-    .optional(),
+  type: z.nativeEnum(TxType).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   ...pageBase,

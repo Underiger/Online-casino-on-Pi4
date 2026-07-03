@@ -352,3 +352,40 @@ export const FARM_SEED_TYPES: ReadonlyArray<FarmSeedDef> = [
     imageKey: 'gem',
   },
 ];
+
+// ═══════════════════════════ 麻將聽牌挑戰 Mahjong ═══════════════════════════
+//
+// 玩法（第三類「麻將」的單人先行版，規則引擎為未來多人麻將地基）：
+//   open：發一副保證聽牌的台灣 16 張手牌（5 面子 + 1 對眼缺 1 張，由「完整胡牌手
+//         隨機抽走一張」構造，可能一洞或多洞聽）＋ 攤開每個洞的賠率 → 不動錢。
+//   bet ：HMAC 簽章下注 → 依序翻開 open 當下就已封存的 8 張牌牆抽牌，摸中任一洞
+//         即自摸胡牌，派彩 = 注額 × 該洞倍率；8 張都未中即輸。單一 Prisma 交易結算
+//         （GETDEL 原子 claim，與射龍門同款——整回合唯一動錢操作是單步的，沒有
+//         「卡在半路」的狀態，不需要 round-lock 也不需要孤兒回合清理）。
+//
+// 賠率定價（逐手動態，射龍門「先攤賠率再下注」模式的推廣）：
+//   U = 136 - 16 = 120 張未見牌全在牆中；洞 t 的實體剩餘 outs w_t = 4 - 手內張數，
+//   總 outs w = Σw_t。8 張抽牌中率 P_hit = 1 - Π_{i=0..7} (U-w-i)/(U-i)（超幾何）。
+//   「結束遊戲的那張中獎牌是洞 t」的機率 = w_t / w（對稱性：每張中獎實體張
+//   成為抽序最前者的機率相等，與「前 8 張內有中」的條件無關）。
+//   權重 weight_t = TAI_BASE_WEIGHT + tai_t（台數高的洞在同一手內賠更多），
+//   縮放係數 scale = TARGET_RTP / (P_hit × Σ(w_t/w)·weight_t)，
+//   洞 t 倍率 M_t = min(cap, scale × weight_t)（無條件捨去至小數 2 位）。
+//   ⇒ 每一手的 EV 恰為 TARGET_RTP（捨去與封頂只會更低）——「換一手」重抽不改變
+//   期望值，玩家挑手牌下注不構成漏洞；台數的意義是同一手內各洞的相對賠率差。
+//   精確 RTP 由 mahjong Monte Carlo 模擬測試驗證（仿射龍門 M29）。
+//
+// 台數表（house 規則）見 modules/mahjong/win.ts 檔頭；自摸/門清恆成立故折入底分。
+
+export const MAHJONG_MIN_BET = 10;
+export const MAHJONG_MAX_BET = 1000;
+
+export const MAHJONG_TARGET_RTP = 0.92;
+/** bet 後翻開的牌牆抽牌數 */
+export const MAHJONG_DRAW_COUNT = 8;
+/** 賠率權重底值：weight = 底值 + 台數（讓 0 台的洞也有正權重） */
+export const MAHJONG_TAI_BASE_WEIGHT = 2;
+/** 單洞倍率封頂（極端小機率洞的顯示/派彩上限；封頂只會壓低 RTP，不會抬高） */
+export const MAHJONG_MULTIPLIER_CAP = 60;
+/** 產生器組面子時選「順子」的機率（其餘為刻子）；影響台數分布，不影響 EV 定價 */
+export const MAHJONG_SEQUENCE_PROBABILITY = 0.6;
