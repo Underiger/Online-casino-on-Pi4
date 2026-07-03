@@ -9,7 +9,8 @@
 | 共用 | `packages/shared` — 前後端共用 DTO / Socket 事件 / Enum（單一真值來源）|
 | 資料 | PostgreSQL 16（dev 亦可用 SQLite）+ Redis 7 |
 
-完整設計文件見 `docs/`（GDD / TDD / DATABASE_DESIGN / FOLDER_STRUCTURE / MILESTONES）。
+完整設計文件見 `01to05/`（GDD / TDD / DATABASE_DESIGN / FOLDER_STRUCTURE / MILESTONES），
+API 規格與進度紀錄見 `docs/`（`04_API_SPEC.md` / `09_FARM_MODULE.md` / 安全演練報告）。
 **開發前必讀 `docs/PROJECT_STATE.md`** 了解目前進度。
 
 ---
@@ -266,7 +267,7 @@ bash scripts/deploy.sh
 ## 測試指令
 
 ```bash
-# 執行全部後端單元 + 整合測試（537 條，無需 PG/Redis）
+# 執行全部後端單元 + 整合測試（678 條，無需 PG/Redis）
 npm test
 
 # 產生覆蓋率報告（輸出至 backend/coverage/）

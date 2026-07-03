@@ -28,6 +28,8 @@
    - [3.15 High-Low（猜高低）](#315-high-low猜高低)
    - [3.16 Blackjack（二十一點）](#316-blackjack二十一點)
    - [3.17 Mahjong（麻將聽牌挑戰）](#317-mahjong麻將聽牌挑戰)
+   - [3.18 Gacha（護符扭蛋）](#318-gacha護符扭蛋)
+   - [3.19 Farm（農場系統）](#319-farm農場系統)
 4. [Socket.IO 事件規格](#4-socketio-事件規格)
    - [4.1 連線與握手](#41-連線與握手)
    - [4.2 Client → Server 事件](#42-client--server-事件)
@@ -63,8 +65,8 @@ Authorization: Bearer <accessToken>
 ### 1.4 HMAC 請求簽章（下注敏感路由）
 
 標記 **HMAC** 的路由（目前：`POST /api/slot/spin`、`POST /api/dragon-gate/bet`、
-`POST /api/high-low/deal`、`POST /api/blackjack/deal`；Socket 事件：`slot:spin`, `roulette:bet`）
-需額外攜帶以下 HTTP Headers：
+`POST /api/high-low/deal`、`POST /api/blackjack/deal`、`POST /api/mahjong/bet`；
+Socket 事件：`slot:spin`, `roulette:bet`）需額外攜帶以下 HTTP Headers：
 
 > 只有「請求 body 帶客戶端宣稱注額」的路由才需要簽章——`high-low/guess`、`high-low/cash-out`、
 > `blackjack/hit`、`blackjack/stand`、`blackjack/double`、`dragon-gate/open` 這類動作的金額完全由
@@ -178,6 +180,13 @@ HMAC 金鑰（`hmacKey`）在登入/refresh 回應中以 base64url 格式下發�
 | Blackjack | POST | `/api/blackjack/double` | ✓ | ✗ | 加倍 |
 | Mahjong | POST | `/api/mahjong/open` | ✓ | ✗ | 發聽牌手 + 攤每洞賠率（不動錢） |
 | Mahjong | POST | `/api/mahjong/bet` | ✓ | ✓ | 下注翻牌牆並結算 |
+| Gacha | GET | `/api/gacha/catalog` | ✓ | ✗ | 扭蛋池 + 個人收集狀態 + 機率表 |
+| Gacha | POST | `/api/gacha/pull` | ✓ | ✗ | 單抽/十連抽（費用伺服器定價，無客戶端金額欄位故不需 HMAC） |
+| Farm | GET | `/api/farm` | ✓ | ✗ | 自家農場全景（地塊/種子目錄/冷卻） |
+| Farm | GET | `/api/farm/targets` | ✓ | ✗ | 可偷菜目標清單 |
+| Farm | POST | `/api/farm/plant` | ✓ | ✗ | 種地（種子費用伺服器定價） |
+| Farm | POST | `/api/farm/harvest` | ✓ | ✗ | 收成入帳 |
+| Farm | POST | `/api/farm/raid` | ✓ | ✗ | 偷菜（零和轉移，詳見 `docs/09_FARM_MODULE.md`） |
 
 > **認證**欄：`✓` = 玩家 JWT、`Admin` = Admin JWT + role 驗證、`✗` = 公開。
 
@@ -1137,6 +1146,38 @@ DELETE 回 `204`，其他回 `200`（型別：`AnnouncementItem`）或 `201`。
 | 404 | `NOT_FOUND` | 回合不存在、已結算或報價逾時（含併發重複下注的第二個請求） |
 | 422 | `INSUFFICIENT_BALANCE` | 餘額不足 |
 | 400 | `ERR_BAD_SIGNATURE` / `ERR_NONCE_REPLAY` / `ERR_SEQ_REGRESSION` / `ERR_STALE_REQUEST` | HMAC 驗證失敗 |
+
+---
+
+### 3.18 Gacha（護符扭蛋）
+
+護符抽取管道（2026-06-21 上線，commit `fae36e7`）。抽取費用由伺服器定價
+（`GACHA_SINGLE_COST` / `GACHA_TEN_COST`，見 `backend/src/config/constants.ts`），
+request body 無客戶端金額欄位，依 §1.4 原則不需 HMAC；受 rate-limit
+（`POST /api/gacha/pull`：capacity 5, refill 2/s）。
+
+#### GET `/api/gacha/catalog`
+
+回傳啟用中的扭蛋池（護符展示欄位，`effect` 不外露）、個人收集狀態、
+稀有度機率表（`GACHA_RARITY_WEIGHTS`）與重複轉換回饋表（`GACHA_DUPLICATE_REFUND`）。
+
+#### POST `/api/gacha/pull`
+
+Body：`{ "count": 1 | 10 }`（單抽 / 十連抽；十連含 ≥1 張 RARE+ 保底）。
+
+- 依稀有度加權抽取（CSPRNG），再於該稀有度池內均勻抽一枚。
+- 單一 `$transaction`：扣款（`TxType.GACHA`）→ 逐抽授予/判定重複 → 重複轉換回饋入帳 → 讀回餘額。
+- 「一人一符」：抽到已擁有（含同批次先前已抽中）→ 不重複授予，退還 `GACHA_DUPLICATE_REFUND[rarity]` Coin。
+- 回應：`{ results: GachaDraw[], totalCost, totalRefund, newBalance }`；`GachaDraw.isNew=false` 表重複轉換。
+
+**錯誤碼**：400 `VALIDATION_ERROR`（count 非 1/10）、422 `INSUFFICIENT_BALANCE`。
+
+### 3.19 Farm（農場系統）
+
+VCS 第二核心子系統（時間型狀態機 + 掠奪併發控制，與賭場共用 wallet）。
+完整規格獨立成冊：**`docs/09_FARM_MODULE.md`**（種子目錄、生長/看守期時間軸、
+偷菜 EV 推導、條件式原子更新與零和轉移設計）。路由總表見 §2（`/api/farm` 五路由，
+種子費用伺服器定價、不需 HMAC；plant/harvest/raid 皆有獨立 rate-limit 規則）。
 
 ---
 

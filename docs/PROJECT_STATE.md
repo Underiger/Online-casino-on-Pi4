@@ -47,6 +47,15 @@
   農場三類交易補上紅/綠帳目配色。
 - 附帶把 M29 後就缺席的 PROJECT_STATE 農場條目補上（見下方農場段落）。
 
+## 護符扭蛋機 Gacha（2026-07-03，補記）
+
+護符抽取管道已於 2026-06-21 發布（commit `fae36e7`，當時未同步本檔，此為補記）：
+`backend/src/modules/gacha/`（單抽/十連抽、稀有度加權 CSPRNG 抽取、十連 RARE+ 保底、
+「一人一符」重複自動轉換 Coin 回饋、扣款/授予/回饋單一 `$transaction` 走 wallet
+`TxType.GACHA`）、`GachaView.vue` 前端 + 大廳入口、rate-limit 規則 `POST /api/gacha/pull`。
+API 文件補記於 `docs/04_API_SPEC.md` §3.18（2026-07-03 同步校訂，連同 §2 路由總表
+Gacha/Farm 條目與 §1.4 HMAC 清單漏列的 `/api/mahjong/bet` 一併修正）。
+
 ## 農場系統 MVP（2026-07-03，補記）
 
 VCS 第二核心子系統（時間型狀態機 + 掠奪併發控制，與賭場共用 wallet）已於同日稍早發布，
