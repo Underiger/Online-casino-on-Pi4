@@ -9,6 +9,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { DRAGON_GATE_MAX_BET, DRAGON_GATE_MIN_BET } from '../../config/constants.js';
 import { parse } from '../../shared/validation.js';
+import { createSettleHook } from '../../shared/settlement-hooks.js';
 import { createWalletService } from '../wallet/wallet.service.js';
 import { createDragonGateService, type DragonGateService } from './dragon-gate.service.js';
 
@@ -44,9 +45,13 @@ const dragonGateRoutes: FastifyPluginAsync<DragonGateRoutesOptions> = async (app
     };
   });
 
+  // 結算後統計掛鉤：anomaly 三規則 + NET_WIN 任務/成就（fire-and-forget）
+  const settleHook = createSettleHook(app);
+
   app.post('/bet', { preHandler: [app.authenticate] }, async (request) => {
     const body = parse(BetReqSchema, request.body);
     const outcome = await service.bet(request.user.sub, body.roundId, body.betAmount);
+    settleHook(request.user.sub, outcome.betAmount, outcome.payout);
     return {
       betRecordId: outcome.betRecordId,
       outcome: outcome.outcome,

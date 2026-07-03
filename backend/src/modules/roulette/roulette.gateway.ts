@@ -26,6 +26,7 @@ import { createWalletService } from '../wallet/wallet.service.js';
 import { createChatService } from '../chat/chat.service.js';
 import { createDailyService, type DailyService } from '../daily/daily.service.js';
 import { createAchievementService, type AchievementService } from '../achievement/achievement.service.js';
+import { createSettleHook, type SettleHook } from '../../shared/settlement-hooks.js';
 import {
   createRouletteService,
   type RouletteBroadcastHooks,
@@ -43,7 +44,12 @@ export function userRoom(userId: string): string {
 }
 
 /** service hooks → Socket.IO 廣播（leader worker 專用出口） */
-export function createRouletteBroadcastHooks(io: GameServer, daily?: DailyService, achievement?: AchievementService): RouletteBroadcastHooks {
+export function createRouletteBroadcastHooks(
+  io: GameServer,
+  daily?: DailyService,
+  achievement?: AchievementService,
+  onSettle?: SettleHook,
+): RouletteBroadcastHooks {
   return {
     onPhase(payload) {
       io.emit(SOCKET_EVENTS.ROULETTE_PHASE, payload);
@@ -94,6 +100,12 @@ export function createRouletteBroadcastHooks(io: GameServer, daily?: DailyServic
           void achievement.checkRouletteMilestone(uid, achIo).catch(() => {});
         }
       }
+      // 每位參與者的結算統計掛鉤：anomaly 三規則 + NET_WIN 任務/成就（fire-and-forget）
+      if (onSettle !== undefined) {
+        for (const [uid, result] of perUser) {
+          onSettle(uid, result.totalBet, result.payout);
+        }
+      }
     },
   };
 }
@@ -126,7 +138,7 @@ export function initRouletteGateway(
       prisma: app.prisma,
       redis: app.redis,
       wallet,
-      hooks: createRouletteBroadcastHooks(io, daily, achievement),
+      hooks: createRouletteBroadcastHooks(io, daily, achievement, createSettleHook(app)),
       chat: createChatService({ prisma: app.prisma, redis: app.redis, log: app.log }),
       log: app.log,
     });

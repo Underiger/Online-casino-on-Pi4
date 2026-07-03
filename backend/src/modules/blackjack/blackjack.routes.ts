@@ -10,6 +10,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { BLACKJACK_MAX_BET, BLACKJACK_MIN_BET } from '../../config/constants.js';
 import { parse } from '../../shared/validation.js';
+import { createSettleHook } from '../../shared/settlement-hooks.js';
 import { createWalletService } from '../wallet/wallet.service.js';
 import { createBlackjackService, type BlackjackService } from './blackjack.service.js';
 import type { ActionResult } from './blackjack.types.js';
@@ -60,6 +61,8 @@ const blackjackRoutes: FastifyPluginAsync<BlackjackRoutesOptions> = async (app, 
       redis: app.redis,
       wallet,
       log: app.log,
+      // 終局結算統計掛鉤：anomaly 三規則 + NET_WIN 任務/成就（fire-and-forget）
+      onSettle: createSettleHook(app),
     });
 
   app.post('/deal', { preHandler: [app.authenticate] }, async (request) => {

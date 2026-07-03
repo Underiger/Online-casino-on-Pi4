@@ -13,7 +13,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { SLOT_BET_AMOUNTS } from '../../config/constants.js';
-import { createAnomalyDetector } from '../../security/anomaly.js';
+import { createFlaggingAnomalyDetector } from '../../security/anomaly-wiring.js';
 import { parse } from '../../shared/validation.js';
 import { createWalletService } from '../wallet/wallet.service.js';
 import { createJackpotService } from '../jackpot/jackpot.service.js';
@@ -65,16 +65,11 @@ const slotRoutes: FastifyPluginAsync<SlotRoutesOptions> = async (app, opts) => {
         chat: createChatService({ prisma: app.prisma, redis: app.redis, log: app.log }),
         log: app.log,
       }),
-      anomaly: createAnomalyDetector(app.redis, {
+      // 偵測 + User.flagged 標記的標準組裝（與其餘遊戲共用，見 anomaly-wiring.ts）
+      anomaly: createFlaggingAnomalyDetector({
+        prisma: app.prisma,
+        redis: app.redis,
         log: app.log,
-        onFlag: (userId, reason) => {
-          // 寫入 User.flagged（fire-and-forget；失敗僅記日誌，不中斷下注流程）
-          void app.prisma.user
-            .updateMany({ where: { id: userId, flagged: false }, data: { flagged: true } })
-            .catch((err: unknown) => {
-              app.log.warn({ err, userId, reason }, 'anomaly: 標記 User.flagged 失敗');
-            });
-        },
       }),
       log: app.log,
     });

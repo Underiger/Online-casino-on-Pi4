@@ -10,6 +10,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { HIGH_LOW_MAX_BET, HIGH_LOW_MIN_BET } from '../../config/constants.js';
 import { parse } from '../../shared/validation.js';
+import { createSettleHook } from '../../shared/settlement-hooks.js';
 import { createWalletService } from '../wallet/wallet.service.js';
 import { createHighLowService, type HighLowService } from './high-low.service.js';
 
@@ -40,6 +41,8 @@ const highLowRoutes: FastifyPluginAsync<HighLowRoutesOptions> = async (app, opts
       redis: app.redis,
       wallet,
       log: app.log,
+      // 終局結算統計掛鉤：anomaly 三規則 + NET_WIN 任務/成就（fire-and-forget）
+      onSettle: createSettleHook(app),
     });
 
   app.post('/deal', { preHandler: [app.authenticate] }, async (request) => {

@@ -285,3 +285,43 @@ describe('resolveAbandoned（孤兒回合清理，BullMQ job 呼叫）', () => {
     await expect(ctx.service.resolveAbandoned(ALICE)).rejects.toThrow(OptimisticLockError);
   });
 });
+
+describe('onSettle 結算掛鉤（2026-07-03 anomaly/NET_WIN 接線）', () => {
+  function setupWithHook(balance = 1_000n) {
+    const calls: Array<[string, number, number]> = [];
+    const db = createFakeDb({ users: [{ id: ALICE, balance }] });
+    const redis = createFakeRedis();
+    const service: BlackjackService = createBlackjackService({
+      prisma: db.prisma,
+      redis: redis.redis,
+      wallet: createWalletService(db.prisma),
+      log: { warn: () => {} },
+      onSettle: (userId, betAmount, payout) => {
+        calls.push([userId, betAmount, payout]);
+      },
+    });
+    return { db, redis, service, calls };
+  }
+
+  it('停牌結算（玩家 16 vs 莊家 17 輸）：onSettle(userId, 注額, 0) 恰呼叫一次', async () => {
+    const ctx = setupWithHook();
+    await seedRound(ctx);
+    await ctx.service.stand(ALICE, 'BJ-test-round');
+    expect(ctx.calls).toEqual([[ALICE, 100, 0]]);
+  });
+
+  it('停牌結算（玩家 20 vs 莊家 17 贏）：onSettle 帶實際派彩 2 倍注額', async () => {
+    const ctx = setupWithHook();
+    await seedRound(ctx, { playerCards: [card(10), card(10)] });
+    await ctx.service.stand(ALICE, 'BJ-test-round');
+    expect(ctx.calls).toEqual([[ALICE, 100, 200]]);
+  });
+
+  it('非終局動作（hit 未爆）不觸發', async () => {
+    const ctx = setupWithHook();
+    // 起手 2+3=5：單張補牌後最多 16，無論牌堆重洗與否都不可能爆牌或湊 21
+    await seedRound(ctx, { playerCards: [card(2), card(3)], deck: [card(2), card(3), card(4)] });
+    await ctx.service.hit(ALICE, 'BJ-test-round');
+    expect(ctx.calls).toHaveLength(0);
+  });
+});

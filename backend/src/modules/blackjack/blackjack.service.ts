@@ -84,6 +84,12 @@ export interface BlackjackServiceDeps {
   rng?: RngFn;
   /** 測試注入：覆寫 round-lock（預設用 deps.redis 建立） */
   roundLock?: RoundLock;
+  /**
+   * 終局結算掛鉤（天生 BJ / 爆牌 / 停牌 / 加倍 / 孤兒回合 auto-stand 全數經
+   * finalizeAndSettle 漏斗）：路由層注入 anomaly + NET_WIN 統計
+   * （shared/settlement-hooks.ts）。呼叫端保證不拋錯（fire-and-forget 語義）。
+   */
+  onSettle?: (userId: string, betAmount: number, payout: number) => void;
 }
 
 export function createBlackjackService(deps: BlackjackServiceDeps) {
@@ -156,6 +162,8 @@ export function createBlackjackService(deps: BlackjackServiceDeps) {
       });
       return balance;
     });
+    // 結算成功後才記統計（交易失敗不記；孤兒回合的 service 實例未注入時為 no-op）
+    deps.onSettle?.(userId, betAmount, outcome.payoutTotal);
     return { resultKey: outcome.resultKey, payout: outcome.payoutTotal, newBalance };
   }
 

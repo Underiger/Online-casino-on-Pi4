@@ -2,6 +2,29 @@
 
 > 每個 Milestone 完成後更新；所有開發前必讀。模板出自 04_FOLDER_STRUCTURE.md §8。
 
+## 缺口修補：anomaly / NET_WIN 全遊戲接線 + 成就測試（2026-07-03）
+
+同日全模組掃描（quicktoknow.md）找出的三個程式碼層缺漏，本批一次修復：
+
+- **異常偵測接線到全部下注遊戲**：三規則（BET_RATE/WIN_RATE/NET_WIN_OUTLIER）
+  原本只接老虎機。新增 `security/anomaly-wiring.ts`（detector + User.flagged 標記
+  的標準組裝，slot 改用之去重）與 `shared/settlement-hooks.ts`
+  （`createSettleHook(app)`：anomaly.recordBet + 淨勝時 NET_WIN 任務進度 +
+  NET_WIN_10000 成就檢查，全 fire-and-forget）。計數鍵本就以 userId 分桶，
+  跨遊戲共享滑動視窗——語義即「全帳號」。
+- **各遊戲接線點**：射龍門/麻將在路由 bet 結算後呼叫；High-Low/Blackjack 走
+  service 新增的選填依賴 `onSettle`（兩者各有單一結算漏斗 `finalizeRound`/
+  `finalizeAndSettle`，交易成功後才記；孤兒回合 job 的 service 實例未注入
+  = no-op，離線結算不記統計）；輪盤在 broadcast hooks 的 perUser 迴圈接
+  （退款路徑 `perUser.clear()` 天然不觸發）。
+- **NET_WIN 語義擴張**：每日任務與 NET_WIN_10000 成就此後計入全部遊戲淨勝
+  （`checkDailyNetWin` 聚合本就無 gameType 過濾，缺的只是觸發點）。
+- **成就子系統測試補上**（M29 後續修補時如實記錄的缺口）：新增
+  `test/unit/achievement.service.spec.ts` 14 條（tryUnlock 冪等/競態 P2002
+  回滾/推播、六個 stat-based 檢查含已解鎖短路與跨遊戲聚合）；High-Low/
+  Blackjack service spec 各 +3 條 onSettle 終局/非終局回歸。
+- 測試：698 條全綠（678 + 20）；lint/typecheck 通過。
+
 ## M30：麻將聽牌挑戰——第三類「麻將」單人先行版（2026-07-03）
 
 四大類新遊戲擴充的第三類「麻將」原規劃需要房間/座位系統（第二類 PvP 的前置）故排最後；

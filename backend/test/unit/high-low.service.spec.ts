@@ -265,3 +265,42 @@ describe('resolveAbandoned（孤兒回合清理，BullMQ job 呼叫）', () => {
     await expect(ctx.service.resolveAbandoned(ALICE)).rejects.toThrow(OptimisticLockError);
   });
 });
+
+describe('onSettle 結算掛鉤（2026-07-03 anomaly/NET_WIN 接線）', () => {
+  function setupWithHook(balance = 1_000n) {
+    const calls: Array<[string, number, number]> = [];
+    const db = createFakeDb({ users: [{ id: ALICE, balance }] });
+    const redis = createFakeRedis();
+    const service: HighLowService = createHighLowService({
+      prisma: db.prisma,
+      redis: redis.redis,
+      wallet: createWalletService(db.prisma),
+      log: { warn: () => {} },
+      onSettle: (userId, betAmount, payout) => {
+        calls.push([userId, betAmount, payout]);
+      },
+    });
+    return { db, redis, service, calls };
+  }
+
+  it('LOSE 終局：onSettle(userId, 注額, 0) 恰呼叫一次', async () => {
+    const ctx = setupWithHook();
+    await seedRound(ctx); // 下一張 9 > 基準 7
+    await ctx.service.guess(ALICE, 'HL-test-round', false); // 猜低 → WRONG
+    expect(ctx.calls).toEqual([[ALICE, 100, 0]]);
+  });
+
+  it('CASH_OUT 終局：onSettle(userId, 注額, 彩池)', async () => {
+    const ctx = setupWithHook();
+    await seedRound(ctx, { state: 'RESULT', pot: 200, streak: 1, pendingNextCard: card(9, 'HEART') });
+    await ctx.service.cashOut(ALICE, 'HL-test-round');
+    expect(ctx.calls).toEqual([[ALICE, 100, 200]]);
+  });
+
+  it('非終局動作（WIN_CONTINUE / deal）不觸發', async () => {
+    const ctx = setupWithHook();
+    await seedRound(ctx);
+    await ctx.service.guess(ALICE, 'HL-test-round', true); // 猜高 → CORRECT → RESULT
+    expect(ctx.calls).toHaveLength(0);
+  });
+});

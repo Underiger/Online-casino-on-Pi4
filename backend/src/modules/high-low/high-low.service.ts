@@ -94,6 +94,12 @@ export interface HighLowServiceDeps {
   rng?: RngFn;
   /** 測試注入：覆寫 round-lock（預設用 deps.redis 建立） */
   roundLock?: RoundLock;
+  /**
+   * 終局結算掛鉤（LOSE / WIN_MAX_STREAK / CASH_OUT / 孤兒回合）：
+   * 路由層注入 anomaly + NET_WIN 統計（shared/settlement-hooks.ts）。
+   * 呼叫端保證不拋錯（fire-and-forget 語義）。
+   */
+  onSettle?: (userId: string, betAmount: number, payout: number) => void;
 }
 
 export function createHighLowService(deps: HighLowServiceDeps) {
@@ -118,20 +124,21 @@ export function createHighLowService(deps: HighLowServiceDeps) {
   async function finalizeRound(
     userId: string,
     betRecordId: string,
+    betAmount: number,
     payout: number,
     detailPatch: Record<string, unknown>,
   ): Promise<bigint> {
-    return prisma.$transaction(async (tx) => {
-      let newBalance: bigint;
+    const newBalance = await prisma.$transaction(async (tx) => {
+      let balance: bigint;
       if (payout > 0) {
         const credit = await wallet.credit(userId, BigInt(payout), 'PAYOUT', {
           tx,
           refId: betRecordId,
         });
-        newBalance = credit.balance;
+        balance = credit.balance;
       } else {
         const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { balance: true } });
-        newBalance = user.balance;
+        balance = user.balance;
       }
       const existing = await tx.betRecord.findUniqueOrThrow({ where: { id: betRecordId } });
       const detail = existing.detail as Record<string, unknown>;
@@ -142,8 +149,11 @@ export function createHighLowService(deps: HighLowServiceDeps) {
           detail: { ...detail, ...detailPatch } as Prisma.InputJsonValue,
         },
       });
-      return newBalance;
+      return balance;
     });
+    // 結算成功後才記統計（交易失敗不記；孤兒回合的 service 實例未注入時為 no-op）
+    deps.onSettle?.(userId, betAmount, payout);
+    return newBalance;
   }
 
   return {
@@ -239,7 +249,7 @@ export function createHighLowService(deps: HighLowServiceDeps) {
 
         if (comparison === 'WRONG') {
           const betRecord = await findOpenBetRecord(prisma, userId, roundId, log);
-          const newBalance = await finalizeRound(userId, betRecord.id, 0, {
+          const newBalance = await finalizeRound(userId, betRecord.id, state.betAmount, 0, {
             status: 'SETTLED',
             outcome: 'LOSE',
             finalStreak: state.streak,
@@ -260,7 +270,7 @@ export function createHighLowService(deps: HighLowServiceDeps) {
         const newPot = state.pot * 2;
         if (newStreak >= HIGH_LOW_MAX_STREAK) {
           const betRecord = await findOpenBetRecord(prisma, userId, roundId, log);
-          const newBalance = await finalizeRound(userId, betRecord.id, newPot, {
+          const newBalance = await finalizeRound(userId, betRecord.id, state.betAmount, newPot, {
             status: 'SETTLED',
             outcome: 'WIN_MAX_STREAK',
             finalStreak: newStreak,
@@ -329,7 +339,7 @@ export function createHighLowService(deps: HighLowServiceDeps) {
         }
 
         const betRecord = await findOpenBetRecord(prisma, userId, roundId, log);
-        const newBalance = await finalizeRound(userId, betRecord.id, state.pot, {
+        const newBalance = await finalizeRound(userId, betRecord.id, state.betAmount, state.pot, {
           status: 'SETTLED',
           outcome: 'CASH_OUT',
           finalStreak: state.streak,
@@ -352,7 +362,7 @@ export function createHighLowService(deps: HighLowServiceDeps) {
 
         const betRecord = await findOpenBetRecord(prisma, userId, state.roundId, log);
         if (state.state === 'GUESSING') {
-          await finalizeRound(userId, betRecord.id, 0, {
+          await finalizeRound(userId, betRecord.id, state.betAmount, 0, {
             status: 'FORFEITED',
             outcome: 'ABANDONED_FORFEITED',
             finalStreak: state.streak,
@@ -361,7 +371,7 @@ export function createHighLowService(deps: HighLowServiceDeps) {
           return { resolved: true, outcome: 'FORFEITED' };
         }
 
-        await finalizeRound(userId, betRecord.id, state.pot, {
+        await finalizeRound(userId, betRecord.id, state.betAmount, state.pot, {
           status: 'AUTO_SETTLED',
           outcome: 'ABANDONED_AUTO_CASH_OUT',
           finalStreak: state.streak,
