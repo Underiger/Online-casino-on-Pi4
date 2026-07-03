@@ -8,6 +8,8 @@
 # ============================================================
 
 # ---------- 1. deps：安裝 workspace 全部依賴 ----------
+# 本 stage 同時是 compose migrate/seed 服務的執行映像（target: deps），
+# 所以除了依賴之外，還必須帶上 seed.ts 執行時 import 的原始碼（見下方 COPY backend/src）。
 FROM node:20.19-alpine AS deps
 WORKDIR /app
 # Alpine 預設只有 libssl3 函式庫、無 openssl CLI；Prisma 的 libssl 版本偵測腳本
@@ -18,6 +20,10 @@ COPY backend/package.json backend/
 COPY backend/prisma backend/prisma
 COPY packages/shared/package.json packages/shared/
 RUN npm install
+# seed.ts import ../src/config/constants.js（農場作物等種子資料的單一真值來源在 src，
+# 不複製進來 seed 會在容器內 ERR_MODULE_NOT_FOUND）。放在 npm install 之後，
+# src 變動不會打破依賴安裝層的快取；dev/build 子 stage 的 COPY backend 會原樣覆蓋。
+COPY backend/src backend/src
 
 # ---------- 2. dev：熱重載開發（tsx watch；原始碼由 compose volume 掛載覆蓋） ----------
 FROM deps AS dev
