@@ -101,7 +101,7 @@ async function registerAndLogin() {
   if (reg.status !== 201) {
     throw new Error(`register 失敗（${reg.status}）：${await reg.text()}`);
   }
-  const { userId } = await reg.json();
+  await reg.json(); // register 回應不再需要——userId 一律取自 login 回應的 user.id
 
   const login = await fetch(`${API}/auth/login`, {
     method: 'POST',
@@ -114,6 +114,13 @@ async function registerAndLogin() {
   const body = await login.json();
   if (!body.hmacKey) {
     throw new Error('login 未下發 hmacKey——後端可能在 Redis 離線下以空金鑰續行，演練無法進行');
+  }
+  // auth 回應形狀為 AuthTokens & { user: AuthUserInfo }（docs/04_API_SPEC.md §3.1）。
+  // 本 lib 早年假設頂層 userId 欄位，該欄位其實不存在——canonical 會簽成
+  // `undefined|SLOT|...`，所有演練一律 BAD_SIGNATURE、無法區分真假陽性，故加硬檢查。
+  const userId = body.user?.id;
+  if (!userId) {
+    throw new Error('login 回應缺 user.id——auth 回應形狀變更？請對照 docs/04_API_SPEC.md §3.1');
   }
   return {
     userId,
