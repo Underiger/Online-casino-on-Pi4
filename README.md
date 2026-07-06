@@ -5,7 +5,7 @@
 
 > 📖 **五分鐘了解這個專案 → [Quick to Know](quicktoknow.md)**
 > 🔐 **安全演練報告 → [Security Test Report](docs/security-test-report.md)**
-> 🛡️ **CVE 報告 → [0615 Security Report](docs/0615_SECURITY_REPORT.md)**
+> 🛡️ **CVE 報告 → [CVE Security Advisory](docs/CVE%20Security%20Advisory.md)**
 
 虛擬賭場沙盒（純娛樂、無真錢交易）。Monorepo 採 **npm workspaces**，技術棧：
 
