@@ -1,5 +1,12 @@
 # Virtual Casino Sandbox
 
+在 Raspberry Pi 4 上實作的多人即時虛擬賭場平台，以應用層資訊安全設計為核心——
+六層縱深防禦、HMAC 三層防重放、700 條測試、蒙地卡羅 RTP 驗證。
+
+> 📖 **五分鐘了解這個專案 → [Quick to Know](quicktoknow.md)**
+> 🔐 **安全演練報告 → [Security Test Report](docs/security-test-report.md)**
+> 🛡️ **CVE 報告 → [0615 Security Report](docs/0615_SECURITY_REPORT.md)**
+
 虛擬賭場沙盒（純娛樂、無真錢交易）。Monorepo 採 **npm workspaces**，技術棧：
 
 | 層 | 技術 |
