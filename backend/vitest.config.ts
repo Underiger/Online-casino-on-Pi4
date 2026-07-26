@@ -24,7 +24,7 @@ export default defineConfig({
       LOG_LEVEL: 'warn',
       PORT: '3000',
       WORKERS: '1',
-      DATABASE_URL: 'file:./test.sqlite',
+      DATABASE_URL: process.env.DATABASE_URL ?? 'file:./test.sqlite',
       REDIS_URL: 'redis://localhost:6379',
       JWT_SECRET: 'vitest_jwt_secret_0123456789abcdef0123456789abcdef',
       JWT_ACCESS_TTL: '15m',
