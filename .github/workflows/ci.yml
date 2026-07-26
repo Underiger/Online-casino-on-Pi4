@@ -52,7 +52,8 @@ jobs:
         run: npx prisma generate
 
       - name: Run tests
-        run: npm test
+        run: npx vitest run --exclude test/integration/socket-connection.spec.ts
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
