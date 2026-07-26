@@ -14,10 +14,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { Redis } from 'ioredis';
 import { createCharmService } from '../../src/modules/charm/charm.service.js';
 import { ForbiddenError, NotFoundError } from '../../src/shared/errors.js';
-import {
-  SLOT_LOADOUT_KEY_PREFIX,
-  SLOT_LOADOUT_TTL_SECONDS,
-} from '../../src/modules/slot/slot.service.js';
+import { SLOT_LOADOUT_KEY_PREFIX } from '../../src/modules/slot/slot.service.js';
 
 // ═════════════════ fake 型別 ═════════════════
 

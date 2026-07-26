@@ -17,7 +17,6 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { createGiftCodeService } from '../../src/modules/gift-code/gift-code.service.js';
 import { createWalletService } from '../../src/modules/wallet/wallet.service.js';
-import { AppError } from '../../src/shared/errors.js';
 
 // ═══════════════════════════════════ fake prisma ═══════════════════════════════
 

@@ -40,8 +40,8 @@ export function isBust(cards: readonly Card[]): boolean {
 export function dealerShouldHit(cards: readonly Card[]): boolean {
   const [total, soft] = handValue(cards);
   if (total < 17) return true;
-  if (total === 17 && soft && BLACKJACK_DEALER_HITS_SOFT_17) return true;
-  return false;
+  // S17 rule: stand on all 17s (BLACKJACK_DEALER_HITS_SOFT_17 toggles H17 variant)
+  return total === 17 && soft && BLACKJACK_DEALER_HITS_SOFT_17;
 }
 
 /**

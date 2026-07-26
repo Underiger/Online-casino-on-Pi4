@@ -9,7 +9,7 @@
  * 封鎖（踢線 + 撤銷會話 + 稽核）、禁言、調幣（成功 + 餘額不足回滾）、
  * 公告 CRUD + 廣播、Gift Code 產生/列表遮蔽、稽核日誌查詢。
  */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import type { Redis } from 'ioredis';
 import { createAdminService, AUDIT_ACTIONS } from '../../src/modules/admin/admin.service.js';

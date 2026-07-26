@@ -16,7 +16,6 @@ import type { FastifyInstance } from 'fastify';
 import {
   createRouletteBroadcastHooks,
   initRouletteGateway,
-  userRoom,
 } from '../../src/modules/roulette/roulette.gateway.js';
 import { createRouletteService } from '../../src/modules/roulette/roulette.service.js';
 import { ROULETTE_PHASE_DURATION_MS } from '../../src/modules/roulette/roulette.types.js';

@@ -37,7 +37,7 @@ const BET = Number.parseInt(process.env.SMOKE_BET || '10', 10);
 
 // gen-cert.sh 產生自簽憑證：預設略過 TLS 驗證（涵蓋 fetch 與 socket.io-client 的 TLS）。
 // 正式上線（Let's Encrypt）請設 SMOKE_TLS_VERIFY=1，連憑證鏈一併驗收。
-if (!TLS_VERIFY) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+if (!TLS_VERIFY) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // codeql[js/disabling-certificate-validation] intentional for self-signed dev certs; production uses Let's Encrypt (set SMOKE_TLS_VERIFY=1)
 
 const uuid = () => crypto.randomUUID();
 let failures = 0;

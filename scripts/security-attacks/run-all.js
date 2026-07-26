@@ -13,7 +13,7 @@
  */
 'use strict';
 
-const { log, C, requireBackend, describeLogCheck, closeDb, TARGET_URL } = require('./lib/common.js');
+const { log, C, requireBackend, closeDb, TARGET_URL } = require('./lib/common.js');
 
 const VECTORS = [
   require('./replay-attack.js'),

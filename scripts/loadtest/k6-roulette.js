@@ -38,7 +38,7 @@
 import http from 'k6/http';
 import ws from 'k6/ws';
 import { check, sleep } from 'k6';
-import { Rate, Counter, Trend } from 'k6/metrics';
+import { Rate, Counter } from 'k6/metrics';
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
 

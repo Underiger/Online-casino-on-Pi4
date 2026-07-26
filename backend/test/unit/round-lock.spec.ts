@@ -99,7 +99,6 @@ describe('withLock', () => {
 
   it('只釋放自己持有的 token：模擬鎖已過期被別人搶到後，原請求的釋放不會誤刪新鎖', async () => {
     const { redis, store } = createFakeRedis();
-    const lock = createRoundLock(redis);
 
     // 模擬：第一個鎖已過期消失，別人搶到了新鎖（store 裡是別人的 token）
     store.set('round:user_1:lock', 'someone-elses-token');

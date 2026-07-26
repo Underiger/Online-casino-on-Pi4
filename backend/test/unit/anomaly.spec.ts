@@ -15,9 +15,7 @@ import {
   createAnomalyDetector,
   BET_RATE_WINDOW_SECONDS,
   WIN_RATE_BUCKET_SECONDS,
-  WIN_RATE_MIN_BETS,
   WIN_RATE_CONSEC_WINDOWS,
-  NET_WIN_OUTLIER_MULTIPLIER,
   netwinKey,
   p99Key,
 } from '../../src/security/anomaly.js';
@@ -75,11 +73,6 @@ function createFakeRedis() {
 /** 傳回 DateNow stub 使目前位於指定 1s bucket 的開頭（毫秒） */
 function inBucket1s(bucket: number): number {
   return bucket * BET_RATE_WINDOW_SECONDS * 1_000;
-}
-
-/** 傳回 DateNow stub 使目前位於指定 5m bucket 的開頭（毫秒） */
-function inBucket5m(bucket: number): number {
-  return bucket * WIN_RATE_BUCKET_SECONDS * 1_000;
 }
 
 // ═════════════════ 測試 ═════════════════
