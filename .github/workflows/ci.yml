@@ -24,9 +24,9 @@ jobs:
 
       - run: npm ci
 
-      - name: Generate Prisma client (SQLite)
+      - name: Generate Prisma client
         working-directory: backend
-        run: npx prisma generate --schema prisma/schema.sqlite.prisma
+        run: npx prisma generate
 
       - name: Lint
         run: npm run lint
@@ -50,9 +50,9 @@ jobs:
 
       - run: npm ci
 
-      - name: Generate Prisma client (SQLite)
+      - name: Generate Prisma client
         working-directory: backend
-        run: npx prisma generate --schema prisma/schema.sqlite.prisma
+        run: npx prisma generate
 
       - name: Run tests
         run: npm test
@@ -79,9 +79,9 @@ jobs:
 
       - run: npm ci
 
-      - name: Generate Prisma client (SQLite)
+      - name: Generate Prisma client
         working-directory: backend
-        run: npx prisma generate --schema prisma/schema.sqlite.prisma
+        run: npx prisma generate
 
       - name: Build all workspaces
         run: npm run build
