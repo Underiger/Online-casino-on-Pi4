@@ -271,7 +271,7 @@ async function main(): Promise<void> {
       balance: 0n, // Admin 不參與遊戲經濟
     },
   });
-  console.log(`  - admin: "${adminUsername.slice(0, 2)}***" 確保存在（role=ADMIN）`);
+  console.log('  - admin 帳號確保存在（role=ADMIN）');
 
   // 6. 農場作物目錄（權威數值在 config/constants.ts FARM_SEED_TYPES，此處只是落庫鏡像）
   for (const s of FARM_SEED_TYPES) {
