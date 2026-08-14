@@ -55,7 +55,9 @@ jobs:
         run: npx vitest run --exclude test/integration/socket-connection.spec.ts
         working-directory: backend
         env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+          # 使用 SQLite 避免在版控中內嵌資料庫憑證（CI 無需 PostgreSQL；
+          # 測試以 in-memory fake 取代真實 DB，此值僅滿足 config/env.ts 驗證）
+          DATABASE_URL: file:./ci-test.sqlite
 
       - name: Upload coverage
         if: always()

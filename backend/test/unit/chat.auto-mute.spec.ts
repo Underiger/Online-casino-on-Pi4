@@ -16,6 +16,7 @@ import { createChatService } from '../../src/modules/chat/chat.service.js';
 function createAutoMuteRedis(): Redis {
   const counters = new Map<string, number>();
   const redis = {
+    // Redis EVAL 命令模擬（ioredis 介面，非 JS eval()）
     async eval(_lua: string, _numKeys: number, key: string): Promise<[number, number]> {
       return key.includes(':min:') ? [0, 0] : [1, 0];
     },

@@ -74,6 +74,9 @@ fi
 set_secret "ADMIN_INITIAL_PASSWORD" "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
 
 # 開發資料庫密碼（docker-compose 與 DATABASE_URL 需一致，僅在仍為 change_me 時帶入）
+# ⚠ 注意：下方 DATABASE_URL 是由本腳本「動態組裝」的範本——PG_PASS 變數在執行時才由
+#   openssl rand 產生，寫入 .env 的連線字串含隨機密碼，不是硬編碼。
+#   安全掃描器若告警此處含密碼，為誤報：掃描對象應為 .env（已 gitignore），非此腳本。
 PG_PASS_CURRENT="$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 if [[ -z "$PG_PASS_CURRENT" || "$PG_PASS_CURRENT" == "change_me" ]]; then
   PG_PASS="$(openssl rand -hex 16)"

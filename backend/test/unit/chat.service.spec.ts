@@ -101,6 +101,7 @@ function createFakeRedis(opts: { failOnEval?: boolean; failOnLpush?: boolean } =
 
   const client = {
     status: 'ready',
+    // Redis EVAL 命令模擬（ioredis 介面，非 JS eval()）：令牌桶 Lua 等義
     async eval(
       script: string,
       numKeys: number,

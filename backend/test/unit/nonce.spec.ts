@@ -25,7 +25,7 @@ function createFakeRedis() {
       store.set(key, { value, ttl: ttl ?? -1 });
       return 'OK';
     },
-    // SEQ_GUARD_LUA 等義：GET 現值（缺省 -1）→ 候選嚴格大於才 SET 並回 1
+    // Redis EVAL 命令模擬（ioredis 介面，非 JS eval()）：SEQ_GUARD_LUA 等義
     async eval(
       _script: string,
       _numKeys: number,

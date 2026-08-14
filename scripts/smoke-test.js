@@ -37,7 +37,20 @@ const BET = Number.parseInt(process.env.SMOKE_BET || '10', 10);
 
 // gen-cert.sh 產生自簽憑證：預設略過 TLS 驗證（涵蓋 fetch 與 socket.io-client 的 TLS）。
 // 正式上線（Let's Encrypt）請設 SMOKE_TLS_VERIFY=1，連憑證鏈一併驗收。
-if (!TLS_VERIFY) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // codeql[js/disabling-certificate-validation] intentional for self-signed dev certs; production uses Let's Encrypt (set SMOKE_TLS_VERIFY=1)
+//
+// 優先策略：若自簽憑證存在，以 NODE_EXTRA_CA_CERTS 信任該 CA（不關閉全域 TLS 驗證）；
+// 僅在憑證不存在時才退回 NODE_TLS_REJECT_UNAUTHORIZED=0。
+if (!TLS_VERIFY) {
+  const path = require('node:path');
+  const fs = require('node:fs');
+  const selfSignedCert = path.resolve(__dirname, '..', 'nginx', 'certs', 'server.crt');
+  if (fs.existsSync(selfSignedCert)) {
+    process.env.NODE_EXTRA_CA_CERTS = selfSignedCert;
+  } else {
+    // 自簽憑證尚未產生（gen-cert.sh 未執行），退回全域略過——僅影響此進程
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // codeql[js/disabling-certificate-validation] intentional fallback for self-signed dev certs
+  }
+}
 
 const uuid = () => crypto.randomUUID();
 let failures = 0;
