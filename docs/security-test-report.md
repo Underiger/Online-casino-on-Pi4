@@ -208,3 +208,48 @@ fake）即可決定性重現安全攔截，與真實後端演練互為佐證：
 ---
 
 *本報告隨 M27 提交；向量 5 的自動禁言建議列入後續 backlog。*
+
+---
+
+## 9. DeepSec Shield 靜態安全審計
+
+> **工具**：[DeepSec](https://github.com/Unclecheng-li/DeepSec)（v0.2.0）— AI 安全攻防一體平台（Shield 代碼審計）
+> **日期**：2026-08-14｜**掃描範圍**：全專案 317 檔案｜**層級**：L1 模式比對 + L2 SAST + L3 語義端點分析
+>
+> 工具已作為 git submodule 引入：`tools/DeepSec`
+
+### 掃描結果摘要
+
+| 類別 | 數量 | 說明 |
+|------|------|------|
+| 原始告警 | 110 | DeepSec Shield L1+L2+L3 全量掃描 |
+| **確認問題（已修復）** | **3** | 見下方「修復紀錄」 |
+| **可強化項（已處理）** | **3** | 見下方「強化紀錄」 |
+| 誤報排除 | 104 | 經人工驗證為安全（詳見下方分析） |
+
+### 修復紀錄
+
+| # | 嚴重度 | 問題 | 檔案 | 修復方式 |
+|---|--------|------|------|----------|
+| 1 | 🔴 Critical | CI 工作流內嵌 PostgreSQL 憑證 | `.github/workflows/ci.yml` | 改為 `file:./ci-test.sqlite`（CI 測試使用 in-memory fake，不需真實 DB） |
+| 2 | 🔴 Critical | 測試設定硬編碼 JWT_SECRET / AES Key | `backend/vitest.config.ts` | 改為 `process.env.X ?? fallback`，CI 可由 secrets 注入 |
+| 3 | 🟠 High | 冒煙測試全域關閉 TLS 驗證 | `scripts/smoke-test.js` | 優先用 `NODE_EXTRA_CA_CERTS` 信任自簽 CA，僅在憑證不存在時退回 |
+
+### 強化紀錄
+
+| # | 項目 | 修改 |
+|---|------|------|
+| 1 | 認證路由缺獨立限流 | `app.ts`：register 3r/min burst 5、login 5r/min burst 8 |
+| 2 | TOTP 端點缺獨立限流 | `app.ts`：totp/verify、validate、reverify 各 3r/min burst 3 |
+| 3 | gen-secrets.sh 範本易混淆 | 加註說明 DATABASE_URL 為動態組裝，非硬編碼 |
+
+### 誤報分析（104 項）
+
+DeepSec 的正則與語義掃描無法辨識 Fastify plugin 架構（preHandler 鏈、全域 hook 注入），主要誤報類別：
+
+- **「Admin 路由缺認證」× 7**：實際有 `adminOnly`（JWT + RBAC）與 `highRisk`（+ 2FA reverify token）三層守衛
+- **「端點缺限流」× 43**：Nginx limit_req + Fastify Redis Lua 令牌桶雙層全域限流
+- **「端點缺錯誤處理」× 34**：Fastify 全域 `setErrorHandler`（app.ts:62）統一攔截
+- **「洩漏錯誤細節」× 13**：全為測試斷言（`expect(res.json()).toMatchObject({ error })`）
+- **`WRONG_PASSWORD` enum 誤判** × 1：TypeScript enum 成員名稱，非實際密碼
+- **Redis fake `.eval()` 方法** × 6：ioredis 介面方法（Redis EVAL 命令），非 JS `eval()`

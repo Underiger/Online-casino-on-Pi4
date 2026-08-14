@@ -1,0 +1,3 @@
+[submodule "tools/DeepSec"]
+	path = tools/DeepSec
+	url = https://github.com/Unclecheng-li/DeepSec.git
