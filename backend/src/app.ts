@@ -108,8 +108,20 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── 安全基座（M06）：全域 preHandler，註冊順序 = 執行順序（先限流再驗章） ──
   await app.register(rateLimitPlugin, {
     allowList: ['/healthz'],
-    // 下注路由收緊至遊戲節奏上限（聊天令牌桶於 M17 在 chat 模組內另設）
     routeRules: {
+      // ── 認證路由：防暴力破解（Nginx auth zone 10r/min 之後的第二道）──────────
+      // 註冊：burst 5、穩態 3r/min——單 IP 每分鐘最多 3 次註冊嘗試
+      'POST /api/auth/register': { capacity: 5, refillPerSec: 3 / 60 },
+      // 登入：burst 8、穩態 5r/min——容許合理重試但阻止字典攻擊
+      'POST /api/auth/login': { capacity: 8, refillPerSec: 5 / 60 },
+
+      // ── TOTP 驗證：防暴力嘗試 6 位碼（10^6 碼空間，30s 窗口）──────────────
+      // burst 3、穩態 3r/min——30 秒窗口內最多 ~1.5 次嘗試，暴力破解不可行
+      'POST /api/admin/totp/verify': { capacity: 3, refillPerSec: 3 / 60 },
+      'POST /api/admin/totp/validate': { capacity: 3, refillPerSec: 3 / 60 },
+      'POST /api/admin/totp/reverify': { capacity: 3, refillPerSec: 3 / 60 },
+
+      // ── 下注路由：收緊至遊戲節奏上限 ─────────────────────────────────────────
       'POST /api/slot/spin': { capacity: 5, refillPerSec: 2 },
       'POST /api/roulette/bet': { capacity: 5, refillPerSec: 2 },
       'POST /api/dragon-gate/bet': { capacity: 5, refillPerSec: 2 },

@@ -22,7 +22,7 @@ function createFakeRedis() {
       store.set(key, value);
       return 'OK';
     },
-    // RELEASE_IF_OWNER_LUA 等義：GET 現值 === token 才 DEL
+    // Redis EVAL 命令模擬（ioredis 介面，非 JS eval()）：RELEASE_IF_OWNER_LUA 等義
     async eval(_script: string, _numKeys: number, key: string, token: string): Promise<number> {
       if (store.get(key) === token) {
         store.delete(key);

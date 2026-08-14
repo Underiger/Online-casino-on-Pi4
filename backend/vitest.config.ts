@@ -18,7 +18,9 @@ export default defineConfig({
         'test/**',
       ],
     },
-    // config/env.ts 於 import 時驗證環境變數（fail loud），測試進程先備齊
+    // config/env.ts 於 import 時驗證環境變數（fail loud），測試進程先備齊。
+    // 機密值從環境變數讀取（CI 由 secrets 注入）；未設定時使用測試專用佔位值——
+    // 這些佔位值僅供本機跑測試，絕非生產金鑰（生產由 scripts/gen-secrets.sh 產生）。
     env: {
       NODE_ENV: 'test',
       LOG_LEVEL: 'warn',
@@ -26,10 +28,11 @@ export default defineConfig({
       WORKERS: '1',
       DATABASE_URL: process.env.DATABASE_URL ?? 'file:./test.sqlite',
       REDIS_URL: 'redis://localhost:6379',
-      JWT_SECRET: 'vitest_jwt_secret_0123456789abcdef0123456789abcdef',
+      JWT_SECRET: process.env.JWT_SECRET ??
+        'vitest_jwt_secret_0123456789abcdef0123456789abcdef',
       JWT_ACCESS_TTL: '15m',
       REFRESH_TOKEN_TTL_DAYS: '7',
-      AES_256_GCM_KEY:
+      AES_256_GCM_KEY: process.env.AES_256_GCM_KEY ??
         '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       SOCKET_MAX_CONNECTIONS: '200',
     },

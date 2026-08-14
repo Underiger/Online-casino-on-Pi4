@@ -1072,10 +1072,12 @@ export function createE2ERedis() {
     },
 
     /**
-     * eval：以「腳本字串參考相等」分派至 production 對應的 JS 實作。
+     * Redis EVAL 命令模擬（ioredis 介面方法，非 JS eval()）。
+     * 以「腳本字串參考相等」分派至 production 對應的 JS 實作。
      *   - SEQ_GUARD_LUA：嚴格遞增才寫入（防 seq 倒退/重複）
      *   - TOKEN_BUCKET_LUA：令牌桶（重用 production consumeToken 純函式）
      */
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis Redis.eval() interface
     async eval(script: string, _numKeys: number, ...args: string[]): Promise<unknown> {
       check('eval');
 

@@ -464,7 +464,7 @@ export function createFakeRedis() {
       ttls.delete(key);
       return value;
     },
-    // 簡化版 eval：round-lock 的 RELEASE_IF_OWNER_LUA 語義（GET 比對才 DEL）
+    // Redis EVAL 命令模擬（ioredis 介面，非 JS eval()）：round-lock 的 RELEASE_IF_OWNER_LUA 語義（GET 比對才 DEL）
     async eval(_script: string, _numKeys: number, key: string, token: string): Promise<number> {
       check('eval');
       if (store.get(key) === token) {
